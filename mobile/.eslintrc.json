@@ -1,0 +1,9 @@
+{
+  "root": true,
+  "extends": ["universe/native", "prettier"],
+  "rules": {
+    "import/order": "off",
+    "no-console": ["warn", { "allow": ["warn", "error"] }]
+  },
+  "ignorePatterns": ["node_modules/", ".expo/", "dist/"]
+}
