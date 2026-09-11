@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "UPI Demo Pay",
+    "slug": "upi-demo-pay",
+    "scheme": "upidemopay",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0B5FFF"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.demo.upidemopay",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Camera access is used to scan UPI-style QR codes for payments."
+      }
+    },
+    "android": {
+      "package": "com.demo.upidemopay",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0B5FFF"
+      },
+      "permissions": ["CAMERA"]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan QR codes."
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "extra": {
+      "apiBaseUrl": "http://localhost:4000",
+      "demoMode": true
+    }
+  }
+}

@@ -1,0 +1,47 @@
+version: "3.9"
+
+# Local development infrastructure only — Postgres + Redis.
+# The app itself (server/mobile) is NOT containerized here; run those with
+# `npm run dev` / `npx expo start` directly, so hot reload works normally.
+#
+# Usage:
+#   docker compose up -d       # start Postgres + Redis in the background
+#   docker compose down        # stop them
+#   docker compose down -v     # stop and wipe all data (fresh DB next start)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: upi_app_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: upi_app
+    ports:
+      - "5432:5432"
+    volumes:
+      - upi_app_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: upi_app_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - upi_app_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  upi_app_postgres_data:
+  upi_app_redis_data:

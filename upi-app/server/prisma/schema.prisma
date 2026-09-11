@@ -1,0 +1,267 @@
+// ============================================================================
+// UPI-Style App — Prisma Schema
+//
+// Design notes:
+// - All money fields use Decimal(14,2), never Float, to avoid floating point
+//   rounding errors in financial calculations.
+// - Balances on Wallet/BankAccount are the "current state" cache. The source
+//   of truth for how a balance got there is WalletLedger (Section 14 of the
+//   spec) — never trust a balance field alone for reconciliation.
+// - Transaction is the single row every payment type (P2P, BANK_TRANSFER,
+//   SELF_TRANSFER, WALLET_TRANSFER, QR_PAYMENT, ADD_MONEY) writes through.
+//   One engine, one table, one set of invariants.
+// - IdempotencyRecord + the unique (userId, key, endpoint) constraint is what
+//   makes "duplicate request → same transaction returned" possible.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------------------------------
+// Enums
+// ----------------------------------------------------------------------------
+
+enum TransactionType {
+  P2P // pay-by-mobile-number, user to user
+  BANK_TRANSFER // to an (external-looking) bank account
+  SELF_TRANSFER // between the same user's own bank accounts
+  WALLET_TRANSFER // wallet <-> user or wallet <-> bank
+  QR_PAYMENT
+  ADD_MONEY // top up wallet from a bank account
+}
+
+enum TransactionStatus {
+  INITIATED
+  PROCESSING
+  SUCCESS
+  FAILED
+  REVERSED
+}
+
+enum LedgerDirection {
+  DEBIT
+  CREDIT
+}
+
+// What kind of account a transaction's source/destination points at.
+enum ParticipantType {
+  WALLET
+  BANK_ACCOUNT
+  EXTERNAL_BANK_ACCOUNT // destination not on our platform (bank transfer to a non-user)
+}
+
+enum OtpPurpose {
+  SIGNUP
+  LOGIN
+  RESET_PIN
+  SET_PIN
+}
+
+enum IdempotencyStatus {
+  PROCESSING
+  COMPLETED
+}
+
+// ----------------------------------------------------------------------------
+// Models
+// ----------------------------------------------------------------------------
+
+model User {
+  id                String   @id @default(cuid())
+  name              String
+  phone             String   @unique
+  email             String   @unique
+  passwordHash      String
+  pinHash           String? // null until the user completes "Set UPI PIN"
+  upiId             String   @unique // e.g. "akshad@demo"
+  profilePictureUrl String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  bankAccounts BankAccount[]
+  wallet       Wallet?
+
+  // A transaction's "userId" is whoever initiated the API call (the
+  // authenticated actor). senderId/receiverId below are the actual parties
+  // whose money moved, which is usually but not always the same as userId
+  // (e.g. an admin-initiated reversal would differ).
+  initiatedTransactions Transaction[] @relation("InitiatedTransactions")
+  sentTransactions      Transaction[] @relation("SentTransactions")
+  receivedTransactions  Transaction[] @relation("ReceivedTransactions")
+
+  idempotencyRecords IdempotencyRecord[]
+  refreshTokens      RefreshToken[]
+
+  @@index([phone])
+  @@index([upiId])
+  @@index([createdAt])
+}
+
+model BankAccount {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankName          String
+  accountHolderName String
+  accountNumber     String // full number; only ever masked before leaving the API — see utils/upi.ts
+  ifsc              String
+  balance           Decimal  @default(0) @db.Decimal(14, 2)
+  isPrimary         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, accountNumber]) // a user can't add the same account twice
+  @@index([userId])
+}
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance   Decimal  @default(0) @db.Decimal(14, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ledgerEntries WalletLedger[]
+
+  @@index([userId])
+}
+
+model WalletLedger {
+  id             String           @id @default(cuid())
+  walletId       String
+  wallet         Wallet           @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  transactionId  String?
+  transaction    Transaction?     @relation(fields: [transactionId], references: [id])
+  type           TransactionType
+  direction      LedgerDirection
+  amount         Decimal          @db.Decimal(14, 2)
+  balanceBefore  Decimal          @db.Decimal(14, 2)
+  balanceAfter   Decimal          @db.Decimal(14, 2)
+  createdAt      DateTime         @default(now())
+
+  @@index([walletId])
+  @@index([transactionId])
+  @@index([createdAt])
+}
+
+model Transaction {
+  id            String @id @default(cuid())
+  transactionId String @unique // human-facing, e.g. TXN_20260908_ABC123
+  referenceId   String @unique @default(uuid()) // internal correlation id (provider/webhook matching)
+
+  type        TransactionType
+  status      TransactionStatus @default(INITIATED)
+  amount      Decimal           @db.Decimal(14, 2)
+  currency    String            @default("INR")
+  description String?
+
+  // Initiator (always the authenticated user who called the API)
+  userId String
+  user   User   @relation("InitiatedTransactions", fields: [userId], references: [id])
+
+  // Actual money-movement parties (nullable: e.g. destination may be an
+  // external, non-platform bank account)
+  senderId   String?
+  sender     User?   @relation("SentTransactions", fields: [senderId], references: [id])
+  receiverId String?
+  receiver   User?   @relation("ReceivedTransactions", fields: [receiverId], references: [id])
+
+  // Where the money came from / went to. IDs point at a Wallet.id or
+  // BankAccount.id depending on the *Type value.
+  sourceType      ParticipantType?
+  sourceId        String?
+  destinationType ParticipantType?
+  destinationId   String?
+
+  // Only populated for BANK_TRANSFER to an external (non-platform) account
+  destinationAccountNumber String?
+  destinationIfsc          String?
+  destinationAccountHolder String?
+
+  // Payment provider abstraction (Phase 14) — always populated even in mock mode
+  provider          String  @default("mock")
+  providerOrderId   String?
+  providerPaymentId String?
+  failureReason     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  walletLedgerEntries  WalletLedger[]
+  idempotencyRecord    IdempotencyRecord?
+  providerTransactions PaymentProviderTransaction[]
+
+  @@index([userId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model IdempotencyRecord {
+  id            String            @id @default(cuid())
+  key           String // the client-supplied Idempotency-Key header
+  userId        String
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint      String // e.g. "POST /api/payments/mobile" — keys are scoped per endpoint
+  requestHash   String // hash of the request body, to detect key reuse with a different payload
+  status        IdempotencyStatus @default(PROCESSING)
+  responseBody  Json?
+  transactionId String?           @unique
+  transaction   Transaction?      @relation(fields: [transactionId], references: [id])
+  createdAt     DateTime          @default(now())
+  expiresAt     DateTime
+
+  @@unique([userId, key, endpoint])
+  @@index([expiresAt])
+}
+
+model PaymentProviderTransaction {
+  id                String      @id @default(cuid())
+  transactionId     String
+  transaction       Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  provider          String
+  providerOrderId   String?
+  providerPaymentId String?
+  status            String
+  rawPayload        Json? // raw webhook/provider payload for audit + debugging
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  @@index([transactionId])
+  @@index([providerOrderId])
+  @@index([providerPaymentId])
+}
+
+model Otp {
+  id        String     @id @default(cuid())
+  phone     String
+  codeHash  String // even the mock OTP (123456) is stored hashed, never plaintext
+  purpose   OtpPurpose
+  attempts  Int        @default(0)
+  verified  Boolean    @default(false)
+  expiresAt DateTime
+  createdAt DateTime   @default(now())
+
+  @@index([phone])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique // the raw refresh token is never stored, only its hash
+  revoked   Boolean  @default(false)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
