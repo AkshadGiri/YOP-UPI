@@ -51,7 +51,61 @@ Planned layering inside `/server/src`:
 
 ## Database schema
 
-_Added in Phase 2 (Prisma schema) with an ER diagram and index rationale._
+Full schema lives in `server/prisma/schema.prisma`. Summary of the 8 models
+and why each exists:
+
+| Model | Purpose |
+|---|---|
+| `User` | Identity, auth credentials (hashed), UPI ID, profile |
+| `BankAccount` | A user's linked demo bank accounts; `balance` is a cache, not the ledger |
+| `Wallet` | One per user; internal demo wallet balance (cache, not the ledger) |
+| `WalletLedger` | The append-only source of truth for wallet balance changes — see below |
+| `Transaction` | The single row every payment type writes through (P2P, bank transfer, self transfer, wallet transfer, QR, add money) |
+| `IdempotencyRecord` | Backs the `Idempotency-Key` mechanism — see "Idempotency" below |
+| `PaymentProviderTransaction` | Audit trail of provider order/payment IDs and raw webhook payloads |
+| `Otp` | Hashed OTP codes with purpose, expiry, and attempt tracking |
+| `RefreshToken` | Hashed refresh tokens for JWT session rotation (added alongside the core 8 models since it's needed by Phase 3 and is a schema change either way) |
+
+### Why balances are a cache, not the truth
+
+`Wallet.balance` and `BankAccount.balance` are denormalized current-state
+fields — fast to read, but never the system of record. Every change to one
+of these fields must be accompanied, in the same database transaction, by a
+`WalletLedger` row recording `balanceBefore`/`balanceAfter` and the
+`direction` (DEBIT/CREDIT). If the two ever disagree, the ledger wins — it's
+what Phase 7's transaction engine reconciles against, and what an auditor
+(or a bug report) would use to reconstruct what actually happened.
+
+### Key relations
+
+- `Transaction.userId` is always the authenticated caller (initiator).
+  `senderId`/`receiverId` are the actual money-movement parties — usually
+  the same as `userId` for a send, but kept separate because a transaction
+  always has a clear "whose action was this" vs "whose balance changed"
+  distinction, which matters once refunds/reversals exist.
+- `Transaction.sourceType`/`sourceId` and `destinationType`/`destinationId`
+  are polymorphic pointers (`WALLET` → `Wallet.id`, `BANK_ACCOUNT` →
+  `BankAccount.id`, `EXTERNAL_BANK_ACCOUNT` → not on this platform, details
+  in `destinationAccountNumber`/`destinationIfsc`/`destinationAccountHolder`).
+- `IdempotencyRecord` has a compound unique constraint on
+  `(userId, key, endpoint)` — the same key is safe to reuse across different
+  endpoints, but replaying it against the same endpoint returns the
+  original result instead of creating a second transaction.
+
+### Indexes
+
+Per the spec, indexes exist on: `User.phone`, `User.upiId`,
+`Transaction.transactionId` (unique), `Transaction.userId`/`senderId`/
+`receiverId`, `Transaction.createdAt`, `BankAccount.userId`,
+`WalletLedger.walletId`/`transactionId`, `Otp.phone`, plus
+`Transaction.status` (for filtering transaction history by
+success/failed/pending) and `IdempotencyRecord.expiresAt` (for periodic
+cleanup of expired records).
+
+### Money type
+
+All monetary fields use `Decimal(14, 2)`, never `Float` — floating point
+arithmetic on money amounts is a classic source of off-by-a-paisa bugs.
 
 ## Payment flow
 

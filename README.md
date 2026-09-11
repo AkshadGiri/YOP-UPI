@@ -38,7 +38,7 @@ See `/docs/ARCHITECTURE.md` for the full explanation once Phase 14 lands.
 This repository is being built in phases (see project plan). Current phase:
 
 - [x] Phase 1 — Project setup
-- [ ] Phase 2 — Database + Prisma
+- [x] Phase 2 — Database + Prisma
 - [ ] Phase 3 — Authentication
 - [ ] Phase 4 — User profile
 - [ ] Phase 5 — Bank accounts
@@ -58,10 +58,12 @@ This repository is being built in phases (see project plan). Current phase:
 
 ## Quick start
 
-See `/server/README.md` (added in Phase 2) and `/mobile/README.md` (added
-alongside the mobile scaffold) for exact run commands. High-level:
+See `/server/README.md` for full database setup and demo credentials. High-level:
 
 ```bash
+# Infra (Postgres + Redis)
+docker compose up -d
+
 # Backend
 cd server
 npm install
