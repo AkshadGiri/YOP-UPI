@@ -6,9 +6,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 /**
  * Root layout for Expo Router.
  *
- * Phase 1 scaffold: just wires up safe area + gesture handler roots and a
- * bare Stack navigator so the app boots. Screens (splash, login, signup,
- * home, etc.) and the auth-gated route groups are added starting Phase 3.
+ * Wires up safe area + gesture handler roots and a bare Stack navigator.
+ * Screen-level auth gating (redirecting based on session state) happens in
+ * app/index.tsx, not here — keeping this layout free of auth logic means
+ * adding route groups later (e.g. a `(tabs)` group for the main app) won't
+ * require touching this file.
  */
 export default function RootLayout() {
   return (

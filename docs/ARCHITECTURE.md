@@ -125,19 +125,94 @@ _Added in Phase 7._
 
 ## Security
 
-_Expanded throughout, consolidated in Phase 16–17._
+### Password and PIN storage
 
-Baseline commitments (see also Section 20 of the original spec):
-- Passwords and UPI PINs are hashed with argon2, never stored or logged in
-  plaintext.
-- JWT access + refresh tokens; refresh tokens are the only long-lived
-  credential.
-- All financial state changes happen inside a single Postgres transaction
-  (BEGIN/COMMIT/ROLLBACK) — partial payments are structurally impossible.
-- Every payment endpoint accepts an `Idempotency-Key` header; duplicate
-  requests return the original transaction rather than creating a new one.
-- Backend/provider confirmation is the sole source of truth for payment
-  success — the frontend cannot mark a payment successful.
+Both are hashed with argon2id (`server/src/utils/crypto.ts`), tuned via
+`ARGON2_MEMORY_COST`/`ARGON2_TIME_COST`/`ARGON2_PARALLELISM`. Neither is
+ever stored, logged, or returned in an API response in plaintext — the
+`SafeUser` shape returned to clients only exposes a `pinSet: boolean`, never
+the hash or the PIN itself.
+
+### JWT strategy
+
+Two token types, two secrets:
+- **Access token** (`JWT_ACCESS_SECRET`, default 15m expiry) — sent as
+  `Authorization: Bearer <token>` on every authenticated request, verified
+  by `middleware/auth.ts`. Stateless; not looked up in the database on each
+  request (a deliberate latency/complexity trade-off — see the comment in
+  `auth.ts`).
+- **Refresh token** (`JWT_REFRESH_SECRET`, default 30d expiry) — used only
+  to get a new access token via `POST /api/auth/refresh`. Its hash (SHA-256,
+  not argon2 — see `utils/jwt.ts` for why a fast hash is appropriate here)
+  is stored in the `RefreshToken` table, which is what makes revocation and
+  rotation possible: a stateless JWT alone can't be revoked before it
+  expires, but checking the database row can.
+
+**Rotation:** every `/refresh` call revokes the presented refresh token and
+issues a brand new one. A refresh token is effectively single-use. If a
+stolen refresh token is replayed after the legitimate client already
+rotated it, the replay fails (`REFRESH_TOKEN_REVOKED`) — this limits how
+much damage a leaked refresh token can do.
+
+**Mobile storage:** both tokens live in Expo SecureStore (Keychain/Keystore),
+never AsyncStorage — see `mobile/utils/secureStorage.ts` and
+`mobile/store/authStore.ts`.
+
+### OTP verification tickets
+
+A subtle trust problem: after OTP verification succeeds, how does the
+signup endpoint know the phone was actually verified, rather than trusting
+a client-supplied `"phoneVerified": true` flag (which any client could send
+without ever calling `/otp/verify`)?
+
+The fix is a signed ticket, not a boolean. `POST /api/auth/otp/verify`
+returns a JWT (`otpTicket`, signed with its own secret, `OTP_TICKET_SECRET`
+— separate from the access/refresh secrets) encoding `{ phone, purpose }`
+with a 10-minute expiry. `POST /api/auth/signup` requires this ticket and
+re-checks that its `phone` and `purpose` match the request — so a login
+ticket can't be replayed to complete a signup, and a ticket for a different
+phone number is rejected. This is the same pattern a real UPI/banking flow
+uses (a short-lived verification assertion), just backed by mock OTP in
+`DEMO_MODE`.
+
+### Mock OTP (DEMO_MODE only)
+
+`utils/otp.ts` generates, hashes, and stores an OTP exactly like a
+production flow would — the only thing DEMO_MODE changes is that the code
+is always `DEV_MOCK_OTP` (`123456` by default) instead of a random one, and
+no real SMS is sent. This is explicit and logged as `[DEMO_MODE]` rather
+than silently swapped in. A real SMS provider integration point is called
+out in the code comment where it would go.
+
+### Rate limiting
+
+Redis-backed (`middleware/rateLimiter.ts`, `rate-limit-redis`), three tiers:
+- **General** — applied globally in `app.ts`, generous budget for normal API use.
+- **Auth** — tighter budget on signup/login/refresh, the classic
+  credential-stuffing targets.
+- **OTP request** — tightest, keyed by `IP + phone` specifically (not just
+  IP) so one phone number can't be OTP-bombed from different IPs, and one
+  IP can't be used to spam many phone numbers.
+
+### Centralized error handling
+
+Every thrown `AppError` (see `utils/AppError.ts`'s catalog) is converted to
+the standard `{ success: false, error: { code, message } }` envelope by
+`middleware/errorHandler.ts`, which is mounted last in `app.ts`. Prisma
+constraint violations (e.g. a race-condition duplicate) and unexpected
+errors are also caught here and never leak internals (stack traces,
+raw Prisma error metadata) into the response — those go to the log only,
+and even there, request bodies are redacted first (`utils/logger.ts`'s
+`redact()`, which strips password/PIN/OTP/token fields recursively before
+anything is logged).
+
+### What's still deferred
+
+- PIN attempt lockout (`PIN_LOCKED` exists in the error catalog but isn't
+  wired up yet — revisit once payment flows exist and PIN verification is
+  actually exercised under real usage patterns).
+- "Logout everywhere" / listing active sessions (not required by the spec;
+  the `RefreshToken` table supports it if it's ever needed later).
 
 ## Real payment integration strategy
 

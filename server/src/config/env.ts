@@ -26,6 +26,7 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(16, 'JWT_REFRESH_SECRET must be at least 16 characters'),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
+  OTP_TICKET_SECRET: z.string().min(16, 'OTP_TICKET_SECRET must be at least 16 characters'),
 
   ARGON2_MEMORY_COST: z.coerce.number().int().positive().default(19456),
   ARGON2_TIME_COST: z.coerce.number().int().positive().default(2),

@@ -1,19 +1,42 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { router } from 'expo-router';
+import { ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuthStore } from '../store/authStore';
+import { colors, spacing, typography } from '../utils/theme';
 
 /**
- * Temporary entry screen for Phase 1.
+ * App entry point. Waits for the persisted auth store to rehydrate from
+ * SecureStore, then redirects:
+ *   - no session                -> /login
+ *   - session but PIN not set   -> /set-pin  (interrupted signup/first login)
+ *   - session with PIN set      -> /home
  *
- * This is replaced by the real splash screen (with auth-state check and
- * redirect to /login or /home) in Phase 3 — Authentication. Kept here only
- * so `npx expo start` has something to boot into and you can verify the
- * scaffold works end-to-end before more is layered on.
+ * This is what makes "session persistence" (Section 3 of the spec) visible
+ * to the user — a cold app start with a valid stored session skips
+ * straight past login instead of asking them to log in again.
  */
-export default function Index() {
+export default function SplashScreen() {
+  const hasHydrated = useAuthStore((s) => s.hasHydrated);
+  const user = useAuthStore((s) => s.user);
+  const accessToken = useAuthStore((s) => s.accessToken);
+
+  useEffect(() => {
+    if (!hasHydrated) return;
+
+    if (!user || !accessToken) {
+      router.replace('/login');
+      return;
+    }
+
+    router.replace(user.pinSet ? '/home' : '/set-pin');
+  }, [hasHydrated, user, accessToken]);
+
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Text style={styles.title}>UPI Demo Pay</Text>
-      <Text style={styles.subtitle}>Phase 1 scaffold — auth screens land in Phase 3</Text>
-    </View>
+      <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.lg }} />
+    </SafeAreaView>
   );
 }
 
@@ -22,18 +45,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 24,
+    backgroundColor: colors.background,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#0B5FFF',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
+  title: { ...typography.h1, color: colors.primary },
 });
