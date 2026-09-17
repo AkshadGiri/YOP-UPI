@@ -1,4 +1,4 @@
-# UPI-Style Payments App (Demo/Educational Project)
+# UPI-Style Payments App 
 
 A production-style, **UPI-inspired** digital payments application built for a
 college/portfolio project. It is **not** an implementation of the real UPI
