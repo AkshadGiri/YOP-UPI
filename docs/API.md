@@ -303,7 +303,95 @@ directly (not via HTTP) by the payments module starting Phase 8.
 
 ---
 
-## Full error code reference (as of Phase 3)
+## Users (Phase 4)
+
+All endpoints below require `Authorization: Bearer <accessToken>` and only
+ever operate on the authenticated caller's own profile — there is no
+"look up another user's full profile" endpoint (searching other users by
+phone number, for payments, is added in Phase 8 and returns a much smaller,
+public-safe shape).
+
+### GET /api/users/profile
+
+Returns the authenticated user's own profile. Identical shape to
+`GET /api/auth/me` — `/auth/me` is kept as a lightweight "is my session
+still valid" check used by the mobile splash screen; `/users/profile` is
+the canonical endpoint the Profile screen uses and where profile mutations
+live alongside it.
+
+**Auth required:** yes
+
+**Success response:**
+```json
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": "clx...",
+      "name": "Akshad",
+      "phone": "9876543210",
+      "email": "akshad@example.com",
+      "upiId": "akshad@demo",
+      "profilePictureUrl": null,
+      "createdAt": "2026-09-11T06:36:00.000Z",
+      "pinSet": true
+    }
+  }
+}
+```
+
+**Errors:** `UNAUTHORIZED`
+
+**Example (curl):**
+```bash
+curl http://localhost:4000/api/users/profile \
+  -H "Authorization: Bearer <accessToken>"
+```
+
+---
+
+### PATCH /api/users/profile
+
+Updates one or more of `name`, `email`, `profilePictureUrl`. Phone number
+is intentionally not editable here (see `user.service.ts` for why). At
+least one field must be present in the body.
+
+**Auth required:** yes
+
+**Request body (all optional, at least one required):**
+```json
+{
+  "name": "Akshad Patil",
+  "email": "akshad.patil@example.com",
+  "profilePictureUrl": "file:///data/user/0/.../ImagePicker/abc123.jpg"
+}
+```
+Send `"profilePictureUrl": null` to remove a previously set picture.
+
+**Success response:** same shape as `GET /api/users/profile`.
+
+**Errors:** `VALIDATION_ERROR`, `EMAIL_ALREADY_REGISTERED`, `UNAUTHORIZED`
+
+**Example (curl):**
+```bash
+curl -X PATCH http://localhost:4000/api/users/profile \
+  -H "Authorization: Bearer <accessToken>" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Akshad Patil"}'
+```
+
+**Note on profile pictures:** `profilePictureUrl` is stored as whatever
+string the client sends — there is no cloud storage integration in this
+project. On the mobile app, `expo-image-picker` returns a local file URI,
+which is only valid on the device that picked it (it will not sync across
+devices or survive a reinstall). This is a known, deliberate limitation for
+a demo project; swapping in real upload (e.g. to S3/Cloudinary) would only
+require changing what the mobile client sends as `profilePictureUrl`, not
+the API shape.
+
+---
+
+## Full error code reference (as of Phase 4)
 
 | Code | HTTP Status | Meaning |
 |---|---|---|

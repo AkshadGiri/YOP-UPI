@@ -1,10 +1,11 @@
-import { OtpPurpose, Prisma, User } from '@prisma/client';
+import { OtpPurpose, Prisma } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
 import { hashSecret, verifySecret } from '../../utils/crypto';
 import * as otpUtil from '../../utils/otp';
 import { generateUniqueUpiId } from '../../utils/upi';
+import { toSafeUser, type SafeUser } from '../users/user.service';
 import {
   hashToken,
   signAccessToken,
@@ -14,23 +15,7 @@ import {
   verifyRefreshToken,
 } from '../../utils/jwt';
 
-export type SafeUser = Pick<
-  User,
-  'id' | 'name' | 'phone' | 'email' | 'upiId' | 'profilePictureUrl' | 'createdAt'
-> & { pinSet: boolean };
-
-function toSafeUser(user: User): SafeUser {
-  return {
-    id: user.id,
-    name: user.name,
-    phone: user.phone,
-    email: user.email,
-    upiId: user.upiId,
-    profilePictureUrl: user.profilePictureUrl,
-    createdAt: user.createdAt,
-    pinSet: user.pinHash !== null,
-  };
-}
+export type { SafeUser };
 
 interface TokenPair {
   accessToken: string;
@@ -272,3 +257,7 @@ export async function getSafeUserById(userId: string): Promise<SafeUser> {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
   return toSafeUser(user);
 }
+// Note: kept as a thin wrapper (rather than re-exporting user.service.getProfile
+// directly) so auth.controller's import surface doesn't change — but it now
+// shares the exact same `toSafeUser` implementation, so there's no risk of
+// the two modules' "profile" shapes drifting apart.

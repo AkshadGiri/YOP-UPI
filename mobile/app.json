@@ -17,7 +17,8 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.demo.upidemopay",
       "infoPlist": {
-        "NSCameraUsageDescription": "Camera access is used to scan UPI-style QR codes for payments."
+        "NSCameraUsageDescription": "Camera access is used to scan UPI-style QR codes for payments.",
+        "NSPhotoLibraryUsageDescription": "Photo library access is used to set your profile picture."
       }
     },
     "android": {
@@ -26,7 +27,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B5FFF"
       },
-      "permissions": ["CAMERA"]
+      "permissions": ["CAMERA", "READ_MEDIA_IMAGES"]
     },
     "plugins": [
       "expo-router",
@@ -34,6 +35,12 @@
         "expo-camera",
         {
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan QR codes."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to set a profile picture."
         }
       ],
       "expo-secure-store"

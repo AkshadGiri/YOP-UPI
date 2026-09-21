@@ -32,6 +32,12 @@ export const loginSchema = z.object({
 });
 export type LoginForm = z.infer<typeof loginSchema>;
 
+export const editProfileSchema = z.object({
+  name: z.string().trim().min(2, 'Name is too short'),
+  email: z.string().trim().toLowerCase().email('Enter a valid email address'),
+});
+export type EditProfileForm = z.infer<typeof editProfileSchema>;
+
 export const setPinFormSchema = z
   .object({
     pin: pinSchema,

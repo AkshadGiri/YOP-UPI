@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import { AnyZodObject, ZodError } from 'zod';
+import { ZodError, ZodTypeAny } from 'zod';
 import { AppError } from '../utils/AppError';
 
 type ValidationTarget = 'body' | 'query' | 'params';
@@ -10,8 +10,12 @@ type ValidationTarget = 'body' | 'query' | 'params';
  * VALIDATION_ERROR AppError carrying the field-level Zod issues as
  * `details`, which the error handler surfaces to the client so the
  * frontend can show precise inline errors.
+ *
+ * Accepts `ZodTypeAny` rather than `AnyZodObject` so schemas built with
+ * `.refine()`/`.transform()` (which return `ZodEffects`, not `ZodObject`)
+ * work too — e.g. user.validation.ts's "at least one field" refinement.
  */
-export function validate(schema: AnyZodObject, target: ValidationTarget = 'body') {
+export function validate(schema: ZodTypeAny, target: ValidationTarget = 'body') {
   return (req: Request, _res: Response, next: NextFunction): void => {
     try {
       req[target] = schema.parse(req[target]);

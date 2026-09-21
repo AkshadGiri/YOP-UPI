@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Avatar } from '../components/Avatar';
 import { PrimaryButton } from '../components/PrimaryButton';
 import * as authService from '../services/authService';
 import { useAuthStore } from '../store/authStore';
@@ -12,7 +13,7 @@ import { colors, spacing, typography } from '../utils/theme';
  * This is NOT the real home screen — the polished balance/quick-actions/
  * transactions home screen (Section 7 of the spec) is built once wallet
  * and bank account data exist to show. This exists so the auth flow has
- * somewhere to land and so logout can be tested end-to-end right now.
+ * somewhere to land and so logout/profile can be tested end-to-end now.
  */
 export default function HomeScreen() {
   const user = useAuthStore((s) => s.user);
@@ -34,7 +35,14 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <View style={styles.container}>
-        <Text style={styles.greeting}>Welcome, {user?.name ?? 'there'} 👋</Text>
+        <Pressable style={styles.profileRow} onPress={() => router.push('/profile')}>
+          <Avatar name={user?.name ?? '?'} uri={user?.profilePictureUrl} size={56} />
+          <View style={styles.profileText}>
+            <Text style={styles.greeting}>Welcome, {user?.name ?? 'there'} 👋</Text>
+            <Text style={styles.viewProfileLink}>View profile →</Text>
+          </View>
+        </Pressable>
+
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Your UPI ID</Text>
           <Text style={styles.cardValue}>{user?.upiId}</Text>
@@ -56,7 +64,19 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1, padding: spacing.lg, justifyContent: 'center' },
-  greeting: { ...typography.h1, color: colors.textPrimary, marginBottom: spacing.lg },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  profileText: { marginLeft: spacing.md, flex: 1 },
+  greeting: { ...typography.h2, color: colors.textPrimary },
+  viewProfileLink: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '600',
+    marginTop: 4,
+  },
   card: {
     backgroundColor: colors.surface,
     borderRadius: 12,

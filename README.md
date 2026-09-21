@@ -40,7 +40,7 @@ This repository is being built in phases (see project plan). Current phase:
 - [x] Phase 1 — Project setup
 - [x] Phase 2 — Database + Prisma
 - [x] Phase 3 — Authentication
-- [ ] Phase 4 — User profile
+- [x] Phase 4 — User profile
 - [ ] Phase 5 — Bank accounts
 - [ ] Phase 6 — Wallet + ledger
 - [ ] Phase 7 — Central transaction engine
