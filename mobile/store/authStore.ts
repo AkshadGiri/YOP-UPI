@@ -52,7 +52,15 @@ export const useAuthStore = create<AuthState>()(
         accessToken: state.accessToken,
         refreshToken: state.refreshToken,
       }),
-      onRehydrateStorage: () => (state) => {
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          // Failed to read/parse the persisted session — proceed as if
+          // there's no saved session rather than leaving the splash screen
+          // stuck forever. `state` is not reliable here (it's often
+          // undefined on error), so call the store directly.
+          useAuthStore.getState().setHasHydrated(true);
+          return;
+        }
         state?.setHasHydrated(true);
       },
     },

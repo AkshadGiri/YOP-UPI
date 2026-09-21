@@ -32,6 +32,20 @@ export default function SplashScreen() {
     router.replace(user.pinSet ? '/home' : '/set-pin');
   }, [hasHydrated, user, accessToken]);
 
+  // Defensive fallback: onRehydrateStorage should always fire (see
+  // authStore.ts, which now handles its error case explicitly), but if
+  // something unforeseen still prevents hasHydrated from ever flipping to
+  // true, don't strand the user on this screen forever — fall through to
+  // login after a few seconds.
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!useAuthStore.getState().hasHydrated) {
+        useAuthStore.getState().setHasHydrated(true);
+      }
+    }, 3000);
+    return () => clearTimeout(timeout);
+  }, []);
+
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.title}>UPI Demo Pay</Text>
