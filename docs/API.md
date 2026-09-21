@@ -391,7 +391,125 @@ the API shape.
 
 ---
 
-## Full error code reference (as of Phase 4)
+## Bank Accounts (Phase 5)
+
+All endpoints below require `Authorization: Bearer <accessToken>` and only
+ever operate on the authenticated caller's own accounts. `id` in a path
+always refers to `BankAccount.id`; requesting an account that exists but
+belongs to someone else returns `ACCOUNT_NOT_FOUND` (not `FORBIDDEN`) —
+deliberately not distinguishing "doesn't exist" from "isn't yours".
+
+The full account number is **never** returned by any endpoint — every
+response includes `maskedAccountNumber` only (e.g. `"XXXX XXXX 6789"`). The
+raw number is only ever visible to the client at the moment the user types
+it into the "Add account" form themselves.
+
+### GET /api/accounts
+
+Lists the caller's bank accounts, primary account first, then by
+`createdAt`.
+
+**Auth required:** yes
+
+**Success response:**
+```json
+{
+  "success": true,
+  "data": {
+    "accounts": [
+      {
+        "id": "clx...",
+        "bankName": "HDFC Bank",
+        "accountHolderName": "Akshad",
+        "maskedAccountNumber": "XXXX XXXX 0001",
+        "ifsc": "HDFC0001234",
+        "balance": "20000",
+        "isPrimary": true,
+        "createdAt": "2026-09-08T00:00:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+**Errors:** `UNAUTHORIZED`
+
+---
+
+### POST /api/accounts
+
+Adds a new demo bank account. The **first** account a user adds is
+automatically set as primary, regardless of what's sent — there is always
+exactly one primary account once at least one exists.
+
+**Auth required:** yes
+
+**Request body:**
+```json
+{
+  "bankName": "State Bank of India",
+  "accountHolderName": "Akshad",
+  "accountNumber": "30200087650002",
+  "ifsc": "SBIN0005678"
+}
+```
+
+**Success response:** the created account, same shape as a `GET` list item — `201 Created`.
+
+**Errors:** `VALIDATION_ERROR` (bad IFSC format, account number not 9–18 digits), `ACCOUNT_ALREADY_EXISTS` (this exact account number is already linked for this user), `UNAUTHORIZED`
+
+**Example (curl):**
+```bash
+curl -X POST http://localhost:4000/api/accounts \
+  -H "Authorization: Bearer <accessToken>" \
+  -H "Content-Type: application/json" \
+  -d '{"bankName":"SBI","accountHolderName":"Akshad","accountNumber":"30200087650002","ifsc":"SBIN0005678"}'
+```
+
+---
+
+### GET /api/accounts/:id
+
+Fetches a single account (masked, same shape as the list).
+
+**Auth required:** yes
+
+**Errors:** `ACCOUNT_NOT_FOUND`, `UNAUTHORIZED`
+
+---
+
+### PATCH /api/accounts/:id/primary
+
+Sets this account as primary. Atomically un-sets whichever account was
+previously primary in the same database transaction — a user with at least
+one account always has exactly one primary, never zero or two.
+
+**Auth required:** yes
+
+**Success response:** the now-primary account.
+
+**Errors:** `ACCOUNT_NOT_FOUND`, `UNAUTHORIZED`
+
+---
+
+### DELETE /api/accounts/:id
+
+Removes an account. A **primary** account cannot be removed while other
+accounts exist — set a different one as primary first. Removing your only
+account is allowed (you fall back to wallet-only until you add another).
+
+**Auth required:** yes
+
+**Success response:**
+```json
+{ "success": true, "data": { "removed": true } }
+```
+
+**Errors:** `ACCOUNT_NOT_FOUND`, `CANNOT_REMOVE_PRIMARY_ACCOUNT`, `UNAUTHORIZED`
+
+---
+
+## Full error code reference (as of Phase 5)
 
 | Code | HTTP Status | Meaning |
 |---|---|---|
@@ -416,8 +534,10 @@ the API shape.
 | `INVALID_PIN` | 400 | Wrong UPI PIN |
 | `PIN_LOCKED` | 429 | Reserved for future PIN attempt lockout |
 | `USER_NOT_FOUND` | 404 | User doesn't exist |
-| `ACCOUNT_NOT_FOUND` | 404 | Reserved for Phase 5 (bank accounts) |
-| `INVALID_IFSC` | 400 | Reserved for Phase 5 |
+| `ACCOUNT_NOT_FOUND` | 404 | Bank account doesn't exist or isn't yours |
+| `ACCOUNT_ALREADY_EXISTS` | 409 | This account number is already linked for this user |
+| `INVALID_IFSC` | 400 | IFSC failed format validation (surfaced as `VALIDATION_ERROR` with details) |
+| `CANNOT_REMOVE_PRIMARY_ACCOUNT` | 400 | Must set another account as primary before removing this one |
 | `INSUFFICIENT_BALANCE` | 400 | Reserved for Phase 7+ |
 | `INVALID_QR` / `QR_EXPIRED` | 400 | Reserved for Phase 11–12 |
 | `TRANSACTION_FAILED` / `TRANSACTION_NOT_FOUND` / `DUPLICATE_TRANSACTION` | varies | Reserved for Phase 7+ |

@@ -32,6 +32,29 @@ export const loginSchema = z.object({
 });
 export type LoginForm = z.infer<typeof loginSchema>;
 
+export const ifscSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Enter a valid IFSC code, e.g. HDFC0001234');
+
+export const addAccountFormSchema = z
+  .object({
+    bankName: z.string().trim().min(2, 'Bank name is required'),
+    accountHolderName: z.string().trim().min(2, 'Account holder name is required'),
+    accountNumber: z
+      .string()
+      .trim()
+      .regex(/^\d{9,18}$/, '9-18 digit account number'),
+    confirmAccountNumber: z.string().trim().min(1, 'Re-enter the account number'),
+    ifsc: ifscSchema,
+  })
+  .refine((data) => data.accountNumber === data.confirmAccountNumber, {
+    message: 'Account numbers do not match',
+    path: ['confirmAccountNumber'],
+  });
+export type AddAccountForm = z.infer<typeof addAccountFormSchema>;
+
 export const editProfileSchema = z.object({
   name: z.string().trim().min(2, 'Name is too short'),
   email: z.string().trim().toLowerCase().email('Enter a valid email address'),

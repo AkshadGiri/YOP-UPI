@@ -47,13 +47,17 @@ export default function HomeScreen() {
           <Text style={styles.cardLabel}>Your UPI ID</Text>
           <Text style={styles.cardValue}>{user?.upiId}</Text>
         </View>
+        <Pressable style={styles.card} onPress={() => router.push('/accounts')}>
+          <Text style={styles.cardLabel}>Bank Accounts</Text>
+          <Text style={styles.cardValue}>Manage linked accounts →</Text>
+        </Pressable>
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Phone</Text>
           <Text style={styles.cardValue}>{user?.phone}</Text>
         </View>
         <Text style={styles.note}>
           This is a placeholder landing screen. The real home screen (balance, quick actions, recent
-          transactions) lands once the wallet and bank account features are built.
+          transactions) lands once the wallet feature is built.
         </Text>
         <PrimaryButton label="Log out" onPress={handleLogout} />
       </View>

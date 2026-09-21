@@ -8,6 +8,7 @@ import { generalRateLimiter } from './middleware/rateLimiter';
 import { errorHandler } from './middleware/errorHandler';
 import authRouter from './modules/auth/auth.routes';
 import userRouter from './modules/users/user.routes';
+import accountRouter from './modules/accounts/account.routes';
 
 /**
  * Express application assembly.
@@ -48,9 +49,9 @@ export function createApp(): Application {
 
   app.use('/api/auth', authRouter);
   app.use('/api/users', userRouter);
+  app.use('/api/accounts', accountRouter);
 
   // Module routers mounted here as later phases add them, e.g.:
-  // app.use('/api/accounts', accountRouter);
   // app.use('/api/wallet', walletRouter);
   // app.use('/api/payments', paymentRouter);
   // app.use('/api/transactions', transactionRouter);

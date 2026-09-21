@@ -37,6 +37,7 @@ export const ErrorCatalog = {
   // Users / accounts
   USER_NOT_FOUND: { status: 404, message: 'User not found' },
   ACCOUNT_NOT_FOUND: { status: 404, message: 'Bank account not found' },
+  ACCOUNT_ALREADY_EXISTS: { status: 409, message: 'This bank account is already added' },
   INVALID_IFSC: { status: 400, message: 'Invalid IFSC code' },
   CANNOT_REMOVE_PRIMARY_ACCOUNT: {
     status: 400,
