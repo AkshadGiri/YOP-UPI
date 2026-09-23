@@ -509,7 +509,120 @@ account is allowed (you fall back to wallet-only until you add another).
 
 ---
 
-## Full error code reference (as of Phase 5)
+## Wallet (Phase 6)
+
+All endpoints below require `Authorization: Bearer <accessToken>` and only
+ever operate on the authenticated caller's own wallet — there is no
+cross-user wallet access. "Pay using wallet" and wallet-to-wallet transfers
+are **not** here — those go through the central transaction engine built
+in Phase 7 and the payment endpoints built in Phase 8+. This phase covers
+the wallet's own balance and its top-up path.
+
+### GET /api/wallet
+
+Returns the caller's wallet balance.
+
+**Auth required:** yes
+
+**Success response:**
+```json
+{
+  "success": true,
+  "data": { "wallet": { "id": "clx...", "balance": "2000", "createdAt": "2026-09-08T00:00:00.000Z" } }
+}
+```
+
+**Errors:** `UNAUTHORIZED`
+
+---
+
+### GET /api/wallet/ledger
+
+Paginated wallet ledger — every balance-affecting event, oldest last. This
+is the append-only source of truth described in `docs/ARCHITECTURE.md`
+("Database schema" → "Why balances are a cache, not the truth"), not a
+derived view — each row is written in the same DB transaction as the
+balance change it explains.
+
+**Auth required:** yes
+
+**Query params:** `page` (default 1), `limit` (default 20, max 100)
+
+**Success response:**
+```json
+{
+  "success": true,
+  "data": {
+    "entries": [
+      {
+        "id": "clx...",
+        "type": "ADD_MONEY",
+        "direction": "CREDIT",
+        "amount": "500",
+        "balanceBefore": "2000",
+        "balanceAfter": "2500",
+        "createdAt": "2026-09-21T10:00:00.000Z",
+        "transactionId": "TXN_20260921_AB12CD",
+        "description": "Added money from HDFC Bank"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 20
+  }
+}
+```
+
+**Errors:** `UNAUTHORIZED`
+
+**Example (curl):**
+```bash
+curl "http://localhost:4000/api/wallet/ledger?page=1&limit=20" \
+  -H "Authorization: Bearer <accessToken>"
+```
+
+---
+
+### POST /api/wallet/add-money
+
+Tops up the wallet from one of the caller's own bank accounts. Debits the
+bank account and credits the wallet atomically — see `wallet.service.ts`
+for the two correctness patterns this establishes (race-safe conditional
+debit; ledger balances derived from the atomic update's return value, not
+a separate read) that Phase 7's transaction engine reuses for every other
+payment type.
+
+**Auth required:** yes
+
+**Request body:**
+```json
+{ "bankAccountId": "clx...", "amount": 500 }
+```
+
+**Success response:**
+```json
+{
+  "success": true,
+  "data": {
+    "wallet": { "id": "clx...", "balance": "2500", "createdAt": "..." },
+    "transactionId": "TXN_20260921_AB12CD"
+  }
+}
+```
+
+**Errors:** `VALIDATION_ERROR` (amount ≤ 0 or > ₹1,00,000), `ACCOUNT_NOT_FOUND`, `INSUFFICIENT_BALANCE`, `UNAUTHORIZED`
+
+**Example (curl):**
+```bash
+curl -X POST http://localhost:4000/api/wallet/add-money \
+  -H "Authorization: Bearer <accessToken>" \
+  -H "Content-Type: application/json" \
+  -d '{"bankAccountId":"clx...","amount":500}'
+```
+
+---
+
+## Full error code reference (as of Phase 6)
 
 | Code | HTTP Status | Meaning |
 |---|---|---|
@@ -538,6 +651,6 @@ account is allowed (you fall back to wallet-only until you add another).
 | `ACCOUNT_ALREADY_EXISTS` | 409 | This account number is already linked for this user |
 | `INVALID_IFSC` | 400 | IFSC failed format validation (surfaced as `VALIDATION_ERROR` with details) |
 | `CANNOT_REMOVE_PRIMARY_ACCOUNT` | 400 | Must set another account as primary before removing this one |
-| `INSUFFICIENT_BALANCE` | 400 | Reserved for Phase 7+ |
+| `INSUFFICIENT_BALANCE` | 400 | Not enough balance for a debit (race-safe: checked and debited atomically) |
 | `INVALID_QR` / `QR_EXPIRED` | 400 | Reserved for Phase 11–12 |
 | `TRANSACTION_FAILED` / `TRANSACTION_NOT_FOUND` / `DUPLICATE_TRANSACTION` | varies | Reserved for Phase 7+ |

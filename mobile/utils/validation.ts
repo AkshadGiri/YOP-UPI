@@ -71,3 +71,15 @@ export const setPinFormSchema = z
     path: ['confirmPin'],
   });
 export type SetPinForm = z.infer<typeof setPinFormSchema>;
+
+export const addMoneyFormSchema = z.object({
+  bankAccountId: z.string().min(1, 'Select a bank account'),
+  amount: z
+    .string()
+    .trim()
+    .min(1, 'Enter an amount')
+    .regex(/^\d+(\.\d{1,2})?$/, 'Enter a valid amount')
+    .refine((v) => Number(v) > 0, 'Amount must be greater than zero')
+    .refine((v) => Number(v) <= 100000, 'Amount cannot exceed ₹1,00,000 per top-up'),
+});
+export type AddMoneyForm = z.infer<typeof addMoneyFormSchema>;

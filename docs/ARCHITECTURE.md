@@ -117,7 +117,33 @@ _Added in Phases 11–12._
 
 ## Wallet flow
 
-_Added in Phase 6._
+Every user has exactly one `Wallet` (created at signup, Phase 3). Its
+`balance` field is a cache — `WalletLedger` is the source of truth, per the
+"Database schema" section above.
+
+**Add money** (`POST /api/wallet/add-money`, Phase 6) is the only wallet
+money-movement implemented so far: it debits a bank account and credits
+the wallet, atomically, inside one database transaction. Two patterns
+established here are reused by every later money-moving operation:
+
+1. **Race-safe debit**: the bank account debit is one conditional
+   `UPDATE ... WHERE balance >= :amount` (via Prisma's `updateMany` with a
+   `gte` filter), not a separate "read balance, check, then write"
+   sequence. Two concurrent requests against the same account can never
+   both succeed and overdraw it.
+2. **Ledger accuracy under concurrency**: rather than trusting a balance
+   read from moments earlier, the wallet credit uses an atomic
+   `increment`, then derives `balanceBefore` from the *returned*
+   post-update balance (`balanceAfter - amount`). This is correct even if
+   another request updated the same wallet in between the initiating read
+   and the write.
+
+"Pay using wallet", "Wallet → bank transfer", and "Wallet → user transfer"
+(Section 6 of the spec) are deliberately **not** part of Phase 6 — they're
+multi-party operations (a sender and a receiver, potentially different
+users) that belong in the central transaction engine (Phase 7) so every
+payment type shares one implementation of debit/credit/ledger/rollback,
+rather than each wallet operation reinventing it slightly differently.
 
 ## Transaction flow
 

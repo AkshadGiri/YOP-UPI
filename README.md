@@ -42,7 +42,7 @@ This repository is being built in phases (see project plan). Current phase:
 - [x] Phase 3 — Authentication
 - [x] Phase 4 — User profile
 - [x] Phase 5 — Bank accounts
-- [ ] Phase 6 — Wallet + ledger
+- [x] Phase 6 — Wallet + ledger
 - [ ] Phase 7 — Central transaction engine
 - [ ] Phase 8 — Mobile payment
 - [ ] Phase 9 — Self transfer

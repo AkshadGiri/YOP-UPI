@@ -1,24 +1,40 @@
-import { router } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '../components/Avatar';
 import { PrimaryButton } from '../components/PrimaryButton';
 import * as authService from '../services/authService';
+import * as walletService from '../services/walletService';
 import { useAuthStore } from '../store/authStore';
 import { colors, spacing, typography } from '../utils/theme';
+import { formatINR } from '../utils/currency';
 
 /**
  * Temporary landing screen after login/signup.
  *
  * This is NOT the real home screen — the polished balance/quick-actions/
- * transactions home screen (Section 7 of the spec) is built once wallet
- * and bank account data exist to show. This exists so the auth flow has
- * somewhere to land and so logout/profile can be tested end-to-end now.
+ * transactions home screen (Section 7 of the spec) is built once bank
+ * accounts, wallet, and transactions all exist to show together. This
+ * exists so the auth flow has somewhere to land and so each feature can be
+ * tested end-to-end as it's built.
  */
 export default function HomeScreen() {
   const user = useAuthStore((s) => s.user);
   const refreshToken = useAuthStore((s) => s.refreshToken);
   const clearSession = useAuthStore((s) => s.clearSession);
+  const [walletBalance, setWalletBalance] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      walletService
+        .getWallet()
+        .then((w) => setWalletBalance(w.balance))
+        .catch(() => {
+          // Non-fatal — the Wallet screen itself will show the real error if any.
+        });
+    }, []),
+  );
 
   async function handleLogout() {
     if (refreshToken) {
@@ -47,6 +63,12 @@ export default function HomeScreen() {
           <Text style={styles.cardLabel}>Your UPI ID</Text>
           <Text style={styles.cardValue}>{user?.upiId}</Text>
         </View>
+        <Pressable style={styles.card} onPress={() => router.push('/wallet')}>
+          <Text style={styles.cardLabel}>Wallet</Text>
+          <Text style={styles.cardValue}>
+            {walletBalance !== null ? formatINR(walletBalance) : 'Loading…'} →
+          </Text>
+        </Pressable>
         <Pressable style={styles.card} onPress={() => router.push('/accounts')}>
           <Text style={styles.cardLabel}>Bank Accounts</Text>
           <Text style={styles.cardValue}>Manage linked accounts →</Text>
@@ -56,8 +78,8 @@ export default function HomeScreen() {
           <Text style={styles.cardValue}>{user?.phone}</Text>
         </View>
         <Text style={styles.note}>
-          This is a placeholder landing screen. The real home screen (balance, quick actions, recent
-          transactions) lands once the wallet feature is built.
+          This is a placeholder landing screen. The real home screen (quick actions, recent
+          transactions) lands once payments are built.
         </Text>
         <PrimaryButton label="Log out" onPress={handleLogout} />
       </View>
