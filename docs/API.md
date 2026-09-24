@@ -509,14 +509,47 @@ account is allowed (you fall back to wallet-only until you add another).
 
 ---
 
-## Wallet (Phase 6)
+## Wallet (Phase 6, extended in Phase 7)
 
 All endpoints below require `Authorization: Bearer <accessToken>` and only
 ever operate on the authenticated caller's own wallet — there is no
-cross-user wallet access. "Pay using wallet" and wallet-to-wallet transfers
-are **not** here — those go through the central transaction engine built
-in Phase 7 and the payment endpoints built in Phase 8+. This phase covers
-the wallet's own balance and its top-up path.
+cross-user wallet access. "Pay using wallet" and wallet-to-**another
+user's** wallet/bank account are **not** here — those need recipient
+resolution (find a user by mobile number, etc.) and are built starting
+Phase 8. This module covers the wallet's own balance and money moving
+between the wallet and the caller's **own** bank accounts.
+
+As of Phase 7, `add-money` and `withdraw` are both thin wrappers around the
+central transaction engine (`server/src/services/transactionEngine.ts`) —
+see `docs/ARCHITECTURE.md` → "Transaction flow" for the full design. Both
+support the `Idempotency-Key` header described below.
+
+**Amounts are always strings**, e.g. `"500"` or `"499.50"` — never a JSON
+number. This is deliberate: a JS/JSON number for money risks silent
+floating-point precision loss; a validated decimal string is converted
+directly to a `Prisma.Decimal` server-side and never touches float
+arithmetic at any point in the payment path.
+
+### Idempotency-Key header
+
+Both money-moving endpoints below (and every payment endpoint from Phase 8
+onward) accept an optional `Idempotency-Key` header:
+
+```
+Idempotency-Key: <any client-generated unique string per action>
+```
+
+- **Not sent** → no protection, the request is processed normally.
+- **Same key, same request body, first attempt already succeeded** → the
+  original success response is replayed verbatim. No second transaction is
+  created.
+- **Same key, different request body** → `409 IDEMPOTENCY_KEY_REUSED`.
+- **Same key, first attempt still in flight (concurrent duplicate)** →
+  `409 DUPLICATE_TRANSACTION`.
+
+This is what makes it safe for a mobile client to retry a payment request
+after a flaky network response or an accidental double-tap — see
+`server/src/services/idempotency.ts` for the implementation.
 
 ### GET /api/wallet
 
@@ -585,18 +618,16 @@ curl "http://localhost:4000/api/wallet/ledger?page=1&limit=20" \
 
 ### POST /api/wallet/add-money
 
-Tops up the wallet from one of the caller's own bank accounts. Debits the
-bank account and credits the wallet atomically — see `wallet.service.ts`
-for the two correctness patterns this establishes (race-safe conditional
-debit; ledger balances derived from the atomic update's return value, not
-a separate read) that Phase 7's transaction engine reuses for every other
-payment type.
+Tops up the wallet from one of the caller's own bank accounts, via the
+central transaction engine.
 
 **Auth required:** yes
 
+**Optional header:** `Idempotency-Key`
+
 **Request body:**
 ```json
-{ "bankAccountId": "clx...", "amount": 500 }
+{ "bankAccountId": "clx...", "amount": "500" }
 ```
 
 **Success response:**
@@ -610,19 +641,52 @@ payment type.
 }
 ```
 
-**Errors:** `VALIDATION_ERROR` (amount ≤ 0 or > ₹1,00,000), `ACCOUNT_NOT_FOUND`, `INSUFFICIENT_BALANCE`, `UNAUTHORIZED`
+**Errors:** `VALIDATION_ERROR` (amount ≤ 0 or > ₹1,00,000, or malformed), `ACCOUNT_NOT_FOUND`, `INSUFFICIENT_BALANCE`, `IDEMPOTENCY_KEY_REUSED`, `DUPLICATE_TRANSACTION`, `UNAUTHORIZED`
 
 **Example (curl):**
 ```bash
 curl -X POST http://localhost:4000/api/wallet/add-money \
   -H "Authorization: Bearer <accessToken>" \
   -H "Content-Type: application/json" \
-  -d '{"bankAccountId":"clx...","amount":500}'
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"bankAccountId":"clx...","amount":"500"}'
 ```
 
 ---
 
-## Full error code reference (as of Phase 6)
+### POST /api/wallet/withdraw
+
+The reverse of add-money: moves money from the wallet to one of the
+caller's own bank accounts (Section 6's "Wallet → bank transfer"). Not to
+be confused with Phase 9's Self Transfer, which is bank-account-to-
+bank-account — this is wallet-to-bank.
+
+**Auth required:** yes
+
+**Optional header:** `Idempotency-Key`
+
+**Request body:**
+```json
+{ "bankAccountId": "clx...", "amount": "200" }
+```
+
+**Success response:** same shape as add-money — `wallet` now reflects the
+**wallet's** post-withdrawal balance.
+
+**Errors:** `VALIDATION_ERROR`, `ACCOUNT_NOT_FOUND`, `INSUFFICIENT_BALANCE` (wallet balance too low), `IDEMPOTENCY_KEY_REUSED`, `DUPLICATE_TRANSACTION`, `UNAUTHORIZED`
+
+**Example (curl):**
+```bash
+curl -X POST http://localhost:4000/api/wallet/withdraw \
+  -H "Authorization: Bearer <accessToken>" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"bankAccountId":"clx...","amount":"200"}'
+```
+
+---
+
+## Full error code reference (as of Phase 7)
 
 | Code | HTTP Status | Meaning |
 |---|---|---|
@@ -652,5 +716,7 @@ curl -X POST http://localhost:4000/api/wallet/add-money \
 | `INVALID_IFSC` | 400 | IFSC failed format validation (surfaced as `VALIDATION_ERROR` with details) |
 | `CANNOT_REMOVE_PRIMARY_ACCOUNT` | 400 | Must set another account as primary before removing this one |
 | `INSUFFICIENT_BALANCE` | 400 | Not enough balance for a debit (race-safe: checked and debited atomically) |
+| `IDEMPOTENCY_KEY_REUSED` | 409 | Same `Idempotency-Key` sent with a different request body |
+| `DUPLICATE_TRANSACTION` | 409 | Same `Idempotency-Key` request is still being processed |
 | `INVALID_QR` / `QR_EXPIRED` | 400 | Reserved for Phase 11–12 |
-| `TRANSACTION_FAILED` / `TRANSACTION_NOT_FOUND` / `DUPLICATE_TRANSACTION` | varies | Reserved for Phase 7+ |
+| `TRANSACTION_FAILED` / `TRANSACTION_NOT_FOUND` | varies | Reserved for Phase 8+ (transaction history, async provider failures) |

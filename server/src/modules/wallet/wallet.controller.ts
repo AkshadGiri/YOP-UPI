@@ -20,3 +20,9 @@ export async function addMoneyHandler(req: Request, res: Response): Promise<void
   const result = await walletService.addMoney(req.user.id, req.body);
   res.status(201).json({ success: true, data: result });
 }
+
+export async function withdrawHandler(req: Request, res: Response): Promise<void> {
+  if (!req.user) throw new AppError('UNAUTHORIZED');
+  const result = await walletService.withdraw(req.user.id, req.body);
+  res.status(201).json({ success: true, data: result });
+}

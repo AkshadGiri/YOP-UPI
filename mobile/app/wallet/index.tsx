@@ -76,10 +76,20 @@ export default function WalletScreen() {
               <View style={styles.balanceCard}>
                 <Text style={styles.balanceLabel}>Wallet balance</Text>
                 <Text style={styles.balanceValue}>{formatINR(wallet?.balance ?? '0')}</Text>
-                <PrimaryButton
-                  label="+ Add money"
-                  onPress={() => router.push('/wallet/add-money')}
-                />
+                <View style={styles.balanceActionsRow}>
+                  <View style={styles.balanceActionButton}>
+                    <PrimaryButton
+                      label="+ Add money"
+                      onPress={() => router.push('/wallet/add-money')}
+                    />
+                  </View>
+                  <View style={styles.balanceActionButton}>
+                    <PrimaryButton
+                      label="Withdraw"
+                      onPress={() => router.push('/wallet/withdraw')}
+                    />
+                  </View>
+                </View>
               </View>
               {errorMessage ? <Text style={styles.errorBanner}>{errorMessage}</Text> : null}
               <Text style={styles.sectionTitle}>Wallet activity</Text>
@@ -145,6 +155,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: spacing.xs,
     marginBottom: spacing.md,
+  },
+  balanceActionsRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  balanceActionButton: {
+    flex: 1,
   },
   errorBanner: {
     color: colors.danger,

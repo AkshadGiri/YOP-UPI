@@ -17,6 +17,10 @@ export const ErrorCatalog = {
   NOT_FOUND: { status: 404, message: 'Resource not found' },
   RATE_LIMITED: { status: 429, message: 'Too many requests, please try again later' },
   INTERNAL_ERROR: { status: 500, message: 'Something went wrong' },
+  IDEMPOTENCY_KEY_REUSED: {
+    status: 409,
+    message: 'This idempotency key was already used with a different request',
+  },
 
   // Auth
   PHONE_ALREADY_REGISTERED: { status: 409, message: 'Phone number is already registered' },

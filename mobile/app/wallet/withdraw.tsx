@@ -2,15 +2,15 @@ import { router } from 'expo-router';
 import { WalletTransferForm } from '../../components/WalletTransferForm';
 import * as walletService from '../../services/walletService';
 
-export default function AddMoneyScreen() {
+export default function WithdrawScreen() {
   return (
     <WalletTransferForm
-      title="Add money"
-      subtitle="Top up your wallet from a linked bank account"
-      accountSectionLabel="From account"
-      submitLabel="Add money"
+      title="Withdraw"
+      subtitle="Move money from your wallet back to a bank account"
+      accountSectionLabel="To account"
+      submitLabel="Withdraw"
       onSubmit={async (values) => {
-        await walletService.addMoney(values);
+        await walletService.withdraw(values);
         router.back();
       }}
     />

@@ -1,4 +1,5 @@
 import { api } from './api';
+import { generateIdempotencyKey } from '../utils/idempotency';
 import type { LedgerPage, SafeWallet } from '../types/wallet';
 
 interface SuccessEnvelope<T> {
@@ -18,17 +19,28 @@ export async function getLedger(page = 1, limit = 20): Promise<LedgerPage> {
   return res.data.data;
 }
 
-export interface AddMoneyPayload {
+export interface WalletTransferPayload {
   bankAccountId: string;
-  amount: number;
+  /** A decimal string, e.g. "500" or "499.50" — never a JS number, to avoid
+   *  any floating-point round-trip on money before it reaches the server. */
+  amount: string;
 }
 
-export async function addMoney(
-  payload: AddMoneyPayload,
-): Promise<{ wallet: SafeWallet; transactionId: string }> {
-  const res = await api.post<SuccessEnvelope<{ wallet: SafeWallet; transactionId: string }>>(
-    '/wallet/add-money',
-    payload,
-  );
+export interface WalletTransferResult {
+  wallet: SafeWallet;
+  transactionId: string;
+}
+
+export async function addMoney(payload: WalletTransferPayload): Promise<WalletTransferResult> {
+  const res = await api.post<SuccessEnvelope<WalletTransferResult>>('/wallet/add-money', payload, {
+    headers: { 'Idempotency-Key': generateIdempotencyKey() },
+  });
+  return res.data.data;
+}
+
+export async function withdraw(payload: WalletTransferPayload): Promise<WalletTransferResult> {
+  const res = await api.post<SuccessEnvelope<WalletTransferResult>>('/wallet/withdraw', payload, {
+    headers: { 'Idempotency-Key': generateIdempotencyKey() },
+  });
   return res.data.data;
 }

@@ -121,33 +121,105 @@ Every user has exactly one `Wallet` (created at signup, Phase 3). Its
 `balance` field is a cache — `WalletLedger` is the source of truth, per the
 "Database schema" section above.
 
-**Add money** (`POST /api/wallet/add-money`, Phase 6) is the only wallet
-money-movement implemented so far: it debits a bank account and credits
-the wallet, atomically, inside one database transaction. Two patterns
-established here are reused by every later money-moving operation:
+**Add money** (`POST /api/wallet/add-money`) and **withdraw**
+(`POST /api/wallet/withdraw`) are the two wallet-to-own-bank-account money
+movements implemented so far — opposite directions of the same operation,
+both now thin wrappers around the central transaction engine (Phase 7;
+see "Transaction flow" below for the engine itself). Phase 6 first built
+this logic directly in `wallet.service.ts`; Phase 7 generalized it into
+`transactionEngine.ts` so every other payment type reuses the exact same
+atomicity/race-safety/ledger-accuracy guarantees rather than each
+reimplementing them slightly differently.
 
-1. **Race-safe debit**: the bank account debit is one conditional
-   `UPDATE ... WHERE balance >= :amount` (via Prisma's `updateMany` with a
-   `gte` filter), not a separate "read balance, check, then write"
-   sequence. Two concurrent requests against the same account can never
-   both succeed and overdraw it.
-2. **Ledger accuracy under concurrency**: rather than trusting a balance
-   read from moments earlier, the wallet credit uses an atomic
-   `increment`, then derives `balanceBefore` from the *returned*
-   post-update balance (`balanceAfter - amount`). This is correct even if
-   another request updated the same wallet in between the initiating read
-   and the write.
-
-"Pay using wallet", "Wallet → bank transfer", and "Wallet → user transfer"
-(Section 6 of the spec) are deliberately **not** part of Phase 6 — they're
-multi-party operations (a sender and a receiver, potentially different
-users) that belong in the central transaction engine (Phase 7) so every
-payment type shares one implementation of debit/credit/ledger/rollback,
-rather than each wallet operation reinventing it slightly differently.
+"Pay using wallet" and "Wallet → **another user's** wallet/bank account"
+(Section 6 of the spec) are still not here — those are multi-party
+operations that need recipient resolution (finding another user by mobile
+number), which Phase 8 introduces. Wallet-to-own-bank-account, by
+contrast, has no recipient to resolve — both sides always belong to the
+caller — so it made sense to build once the engine existed rather than
+waiting on Phase 8's recipient-search feature.
 
 ## Transaction flow
 
-_Added in Phase 7._
+`server/src/services/transactionEngine.ts` exports one function,
+`executeTransfer`, that every payment type routes through — ADD_MONEY,
+WALLET_TRANSFER, and (starting Phase 8) P2P, BANK_TRANSFER,
+SELF_TRANSFER, and QR_PAYMENT. There is exactly one implementation of
+"move money and record it correctly," not one per payment type.
+
+### What the engine does, in order, inside one Postgres transaction
+
+1. **Debit the source** via a single guarded conditional `UPDATE`
+   (`WHERE balance >= amount`, expressed as Prisma's `updateMany` with a
+   `gte` filter). This is the load-bearing correctness property: the
+   "is there enough balance" check and the debit are the same atomic SQL
+   statement, so two concurrent requests against the same wallet or bank
+   account can never both succeed and overdraw it. A separate
+   read-balance-then-check-then-write sequence — even inside a database
+   transaction — would not have this guarantee under Postgres's default
+   Read Committed isolation.
+2. **Credit the destination** (skipped for an `EXTERNAL_BANK_ACCOUNT`
+   destination — see below).
+3. **Create the `Transaction` row** — the record every payment type
+   shares one shape for for (Section 13 of the original spec).
+4. **Write `WalletLedger` row(s)** for whichever side(s) are a `WALLET`.
+   `balanceBefore`/`balanceAfter` are derived from the *actual returned
+   balance* of the update in step 1/2, not a value read earlier — reading
+   your own just-written value within the same transaction is always
+   correct (Postgres holds the row lock from the `UPDATE` until commit),
+   whereas a value read moments before the write could already be stale
+   under concurrent load.
+
+If anything fails at any step, the whole transaction rolls back — no
+partial payment state is possible (Section 14/27 of the original spec).
+
+### Authorization is NOT the engine's job
+
+`executeTransfer` trusts its caller completely on "does this
+source/destination actually belong to who it should." It only knows about
+balances and ledger correctness. Every module calling it (wallet, and
+starting Phase 8 the payments module) must verify ownership itself first —
+this keeps the engine's contract simple and uniform across very different
+call sites with very different ownership rules (a wallet is always the
+caller's own; a payment recipient is deliberately *someone else's* wallet
+or bank account).
+
+### Money never touches floating point
+
+Every amount is validated as a decimal string (regex: `^\d+(\.\d{1,2})?$`)
+at the API boundary and stays a string until it's wrapped in a
+`Prisma.Decimal` — it is never parsed into a JS `number` for storage or
+arithmetic. `Prisma.Decimal` arithmetic (`.plus()`, `.minus()`, Prisma's
+`increment`/`decrement` update operators) is used throughout instead of
+`+`/`-` on numbers.
+
+### Why FAILED/PROCESSING/REVERSED aren't used yet
+
+`Transaction.status` has five values, but Phase 7–13's internal transfers
+only ever produce `SUCCESS` (engine throws before writing anything) —
+never `FAILED`. This is deliberate: a same-request failure (insufficient
+balance, invalid PIN) is something the client can just retry, and there's
+no value in a permanent audit row for an attempt that never moved any
+money. `PROCESSING` and `FAILED` become meaningful starting Phase 14/15,
+when a transaction can legitimately sit in `PROCESSING` while waiting on
+an async PSP callback, and then move to `FAILED` based on that callback —
+a genuinely different failure mode from "the request was invalid."
+`REVERSED` is reserved for a future refund/reversal feature, not yet
+built.
+
+### Idempotency
+
+`server/src/services/idempotency.ts` exports `idempotencyGuard(endpoint)`,
+Express middleware backing the `Idempotency-Key` header (Section 15).
+Mounted after request validation (so a malformed request never reserves a
+key) and before the controller. Uses the `IdempotencyRecord` table
+(unique on `userId + key + endpoint`): a fresh key reserves a `PROCESSING`
+row, the actual response is captured and persisted as `COMPLETED` once
+sent, and a repeated key with the same request body gets that stored
+response replayed verbatim rather than re-running the operation. See the
+file's own doc comment for the full state-machine and its one documented
+limitation (a mid-flight process crash can strand a key in `PROCESSING`
+until its TTL — acceptable for a demo project, flagged rather than hidden).
 
 ## Security
 
