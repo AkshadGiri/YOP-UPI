@@ -72,14 +72,26 @@ export const setPinFormSchema = z
   });
 export type SetPinForm = z.infer<typeof setPinFormSchema>;
 
+/** Reused everywhere a single rupee amount is entered - add money, withdraw, send money. */
+export const amountFieldSchema = z
+  .string()
+  .trim()
+  .min(1, 'Enter an amount')
+  .regex(/^\d+(\.\d{1,2})?$/, 'Enter a valid amount')
+  .refine((v) => Number(v) > 0, 'Amount must be greater than zero')
+  .refine((v) => Number(v) <= 100000, 'Amount cannot exceed ₹1,00,000');
+
 export const addMoneyFormSchema = z.object({
   bankAccountId: z.string().min(1, 'Select a bank account'),
-  amount: z
-    .string()
-    .trim()
-    .min(1, 'Enter an amount')
-    .regex(/^\d+(\.\d{1,2})?$/, 'Enter a valid amount')
-    .refine((v) => Number(v) > 0, 'Amount must be greater than zero')
-    .refine((v) => Number(v) <= 100000, 'Amount cannot exceed ₹1,00,000 per top-up'),
+  amount: amountFieldSchema,
 });
 export type AddMoneyForm = z.infer<typeof addMoneyFormSchema>;
+
+export const mobileNumberFormSchema = z.object({ mobile: phoneSchema });
+export type MobileNumberForm = z.infer<typeof mobileNumberFormSchema>;
+
+export const payAmountFormSchema = z.object({ amount: amountFieldSchema });
+export type PayAmountForm = z.infer<typeof payAmountFormSchema>;
+
+export const payPinFormSchema = z.object({ pin: pinSchema });
+export type PayPinForm = z.infer<typeof payPinFormSchema>;

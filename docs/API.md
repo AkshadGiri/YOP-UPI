@@ -686,7 +686,85 @@ curl -X POST http://localhost:4000/api/wallet/withdraw \
 
 ---
 
-## Full error code reference (as of Phase 7)
+## Payments (Phase 8)
+
+The first payment type with a genuine recipient — a different registered
+user, found by mobile number. Settles via bank accounts (sender's primary
+→ receiver's primary); see `docs/ARCHITECTURE.md` → "Wallet flow" for why
+that's a deliberate choice, distinct from the Wallet feature.
+
+### GET /api/payments/resolve/mobile
+
+The "Find User" step (spec Section 8, steps 1–3): looks up a registered
+user by mobile number and returns only public-safe fields — no email, no
+account details.
+
+**Auth required:** yes
+
+**Query params:** `mobile` (10-digit Indian mobile number)
+
+**Success response:**
+```json
+{
+  "success": true,
+  "data": {
+    "recipient": { "name": "Rahul", "upiId": "rahul@demo", "profilePictureUrl": null }
+  }
+}
+```
+
+**Errors:** `VALIDATION_ERROR`, `USER_NOT_FOUND`, `UNAUTHORIZED`
+
+**Example (curl):**
+```bash
+curl "http://localhost:4000/api/payments/resolve/mobile?mobile=9876000000" \
+  -H "Authorization: Bearer <accessToken>"
+```
+
+---
+
+### POST /api/payments/mobile
+
+Executes the payment (spec Section 8, steps 4–14). PIN is verified before
+any account lookups happen, so a wrong PIN never reveals whether a
+recipient exists or is payable.
+
+**Auth required:** yes
+
+**Optional header:** `Idempotency-Key`
+
+**Request body:**
+```json
+{ "mobile": "9876000000", "amount": "500", "pin": "1234" }
+```
+
+**Success response:**
+```json
+{
+  "success": true,
+  "data": {
+    "transactionId": "TXN_20260924_AB12CD",
+    "amount": "500",
+    "recipient": { "name": "Rahul", "upiId": "rahul@demo" },
+    "senderBalanceAfter": "19500"
+  }
+}
+```
+
+**Errors:** `VALIDATION_ERROR`, `PIN_NOT_SET`, `INVALID_PIN`, `CANNOT_PAY_SELF` (sending to your own registered number — use Self Transfer instead), `USER_NOT_FOUND`, `ACCOUNT_NOT_FOUND` (you have no primary bank account), `RECEIVER_ACCOUNT_NOT_FOUND` (recipient has no bank account set up), `INSUFFICIENT_BALANCE`, `IDEMPOTENCY_KEY_REUSED`, `DUPLICATE_TRANSACTION`, `UNAUTHORIZED`
+
+**Example (curl):**
+```bash
+curl -X POST http://localhost:4000/api/payments/mobile \
+  -H "Authorization: Bearer <accessToken>" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"mobile":"9876000000","amount":"500","pin":"1234"}'
+```
+
+---
+
+## Full error code reference (as of Phase 8)
 
 | Code | HTTP Status | Meaning |
 |---|---|---|
@@ -715,8 +793,10 @@ curl -X POST http://localhost:4000/api/wallet/withdraw \
 | `ACCOUNT_ALREADY_EXISTS` | 409 | This account number is already linked for this user |
 | `INVALID_IFSC` | 400 | IFSC failed format validation (surfaced as `VALIDATION_ERROR` with details) |
 | `CANNOT_REMOVE_PRIMARY_ACCOUNT` | 400 | Must set another account as primary before removing this one |
+| `CANNOT_PAY_SELF` | 400 | Tried to pay-by-mobile to your own registered number |
+| `RECEIVER_ACCOUNT_NOT_FOUND` | 400 | Recipient exists but has no bank account to receive into |
 | `INSUFFICIENT_BALANCE` | 400 | Not enough balance for a debit (race-safe: checked and debited atomically) |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | Same `Idempotency-Key` sent with a different request body |
 | `DUPLICATE_TRANSACTION` | 409 | Same `Idempotency-Key` request is still being processed |
 | `INVALID_QR` / `QR_EXPIRED` | 400 | Reserved for Phase 11–12 |
-| `TRANSACTION_FAILED` / `TRANSACTION_NOT_FOUND` | varies | Reserved for Phase 8+ (transaction history, async provider failures) |
+| `TRANSACTION_FAILED` / `TRANSACTION_NOT_FOUND` | varies | Reserved for Phase 13 (transaction history detail lookup) and Phase 14+ (async provider failures) |

@@ -59,6 +59,10 @@ export default function HomeScreen() {
           </View>
         </Pressable>
 
+        <PrimaryButton label="Send to mobile number" onPress={() => router.push('/send/mobile')} />
+
+        <View style={styles.spacer} />
+
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Your UPI ID</Text>
           <Text style={styles.cardValue}>{user?.upiId}</Text>
@@ -79,7 +83,8 @@ export default function HomeScreen() {
         </View>
         <Text style={styles.note}>
           This is a placeholder landing screen. The real home screen (quick actions, recent
-          transactions) lands once payments are built.
+          transactions) lands once self transfer, bank transfer, QR, and transaction history are
+          built too.
         </Text>
         <PrimaryButton label="Log out" onPress={handleLogout} />
       </View>
@@ -109,6 +114,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
   },
+  spacer: { height: spacing.lg },
   cardLabel: { ...typography.caption, color: colors.textSecondary },
   cardValue: { ...typography.body, color: colors.textPrimary, fontWeight: '600', marginTop: 2 },
   note: {

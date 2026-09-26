@@ -109,7 +109,36 @@ arithmetic on money amounts is a classic source of off-by-a-paisa bugs.
 
 ## Payment flow
 
-_Added in Phase 7 (central transaction engine) and expanded in Phases 8–10._
+The central transaction engine (see "Transaction flow" below) is what
+actually moves money; this section covers how each payment *type* decides
+who pays whom and from which account, before handing off to the engine.
+
+### Pay by mobile number (Phase 8)
+
+The first payment type with a genuine third-party recipient. Flow:
+
+1. `GET /api/payments/resolve/mobile?mobile=...` — look up a registered
+   user by phone, return name/UPI ID/photo only (no email, no accounts).
+2. Client shows the recipient and collects an amount and PIN.
+3. `POST /api/payments/mobile` — server re-verifies the PIN
+   (`auth.service.verifyPin`, shared with every other payment type from
+   here on), re-resolves the recipient by phone (never trusts a
+   client-supplied recipient ID from step 1 — the only thing carried
+   between steps is the phone number itself), confirms the sender isn't
+   paying their own registered number (`CANNOT_PAY_SELF` — that's what
+   Self Transfer, Phase 9, is for), then calls `executeTransfer` with the
+   sender's primary bank account as source and the receiver's primary
+   bank account as destination.
+
+**Design choice — settles via bank accounts, not the wallet:** every
+"UPI-style" payment type (mobile, and starting Phase 9/10 self-transfer
+and bank-transfer, plus Phase 12's QR) moves money between bank accounts,
+mirroring how real UPI settles payments through linked bank accounts. The
+app's **Wallet** is kept a deliberately separate, distinct concept — its
+own prepaid-style balance with its own add-money/withdraw (Phase 6/7) —
+rather than silently becoming "the" source of funds for P2P payments. This
+also matches the spec's Home screen (Section 7), which lists "Mobile" and
+"Wallet" as two separate quick actions, not one.
 
 ## QR flow
 

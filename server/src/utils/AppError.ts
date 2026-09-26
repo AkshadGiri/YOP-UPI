@@ -59,6 +59,11 @@ export const ErrorCatalog = {
     status: 400,
     message: 'Source and destination accounts must be different',
   },
+  CANNOT_PAY_SELF: { status: 400, message: 'Use Self Transfer to move money between your own accounts' },
+  RECEIVER_ACCOUNT_NOT_FOUND: {
+    status: 400,
+    message: 'This recipient does not have a bank account set up yet',
+  },
 } as const;
 
 export type ErrorCode = keyof typeof ErrorCatalog;

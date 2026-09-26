@@ -60,6 +60,29 @@ export async function getAccount(userId: string, accountId: string): Promise<Saf
   return toSafeAccount(account);
 }
 
+/**
+ * Returns the raw (unmasked-internally, not serialized) primary BankAccount
+ * row for a user, or null if they have none. Exported for the payments
+ * module (Phase 8+) — every payment type that settles via bank account
+ * needs "the sender's/receiver's primary account", not the masked
+ * client-facing shape.
+ */
+export async function getPrimaryAccountForUser(userId: string): Promise<BankAccount | null> {
+  return prisma.bankAccount.findFirst({ where: { userId, isPrimary: true } });
+}
+
+/** Same as above, but throws if the user has no primary account. */
+export async function getPrimaryAccountOrThrow(
+  userId: string,
+  errorCode: 'ACCOUNT_NOT_FOUND' | 'RECEIVER_ACCOUNT_NOT_FOUND' = 'ACCOUNT_NOT_FOUND',
+): Promise<BankAccount> {
+  const account = await getPrimaryAccountForUser(userId);
+  if (!account) {
+    throw new AppError(errorCode);
+  }
+  return account;
+}
+
 export interface AddAccountInput {
   bankName: string;
   accountHolderName: string;

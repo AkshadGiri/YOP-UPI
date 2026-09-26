@@ -1,10 +1,6 @@
 import { z } from 'zod';
 import { OtpPurpose } from '@prisma/client';
-
-const phoneSchema = z
-  .string()
-  .trim()
-  .regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit Indian mobile number');
+import { phoneSchema, pinSchema } from '../../utils/validators';
 
 const passwordSchema = z
   .string()
@@ -12,8 +8,6 @@ const passwordSchema = z
   .max(72, 'Password is too long')
   .regex(/[A-Za-z]/, 'Password must contain at least one letter')
   .regex(/[0-9]/, 'Password must contain at least one number');
-
-const pinSchema = z.string().regex(/^\d{4}$/, 'UPI PIN must be exactly 4 digits');
 
 // Only SIGNUP and LOGIN are exposed as request-able OTP purposes today.
 // RESET_PIN/SET_PIN exist in the schema for a future "forgot PIN" flow.
