@@ -14,3 +14,9 @@ export async function payMobileHandler(req: Request, res: Response): Promise<voi
   const result = await paymentService.payByMobile(req.user.id, req.body);
   res.status(201).json({ success: true, data: result });
 }
+
+export async function selfTransferHandler(req: Request, res: Response): Promise<void> {
+  if (!req.user) throw new AppError('UNAUTHORIZED');
+  const result = await paymentService.selfTransfer(req.user.id, req.body);
+  res.status(201).json({ success: true, data: result });
+}

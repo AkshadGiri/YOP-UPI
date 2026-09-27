@@ -10,3 +10,10 @@ export interface PaymentResult {
   recipient: { name: string; upiId: string };
   senderBalanceAfter: string;
 }
+
+export interface SelfTransferResult {
+  transactionId: string;
+  amount: string;
+  fromAccountBalanceAfter: string;
+  toAccountBalanceAfter: string;
+}

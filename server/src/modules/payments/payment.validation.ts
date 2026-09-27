@@ -10,3 +10,10 @@ export const payMobileSchema = z.object({
   amount: amountSchema(),
   pin: pinSchema,
 });
+
+export const selfTransferSchema = z.object({
+  fromAccountId: z.string().min(1, 'Select a source account'),
+  toAccountId: z.string().min(1, 'Select a destination account'),
+  amount: amountSchema(),
+  pin: pinSchema,
+});

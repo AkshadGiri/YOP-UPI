@@ -686,7 +686,7 @@ curl -X POST http://localhost:4000/api/wallet/withdraw \
 
 ---
 
-## Payments (Phase 8)
+## Payments (Phase 8, extended in Phase 9)
 
 The first payment type with a genuine recipient — a different registered
 user, found by mobile number. Settles via bank accounts (sender's primary
@@ -764,7 +764,52 @@ curl -X POST http://localhost:4000/api/payments/mobile \
 
 ---
 
-## Full error code reference (as of Phase 8)
+### POST /api/payments/self
+
+Moves money between two of the caller's **own** bank accounts (spec
+Section 9/10 — "Self Transfer"). Both `fromAccountId` and `toAccountId`
+are verified to belong to the caller; the same-account check
+(`SELF_TRANSFER_SAME_ACCOUNT`) happens in the service layer, not Zod
+validation, so it surfaces as its own specific error code rather than a
+generic `VALIDATION_ERROR` — consistent with how `CANNOT_PAY_SELF` works
+for pay-by-mobile.
+
+**Auth required:** yes
+
+**Optional header:** `Idempotency-Key`
+
+**Request body:**
+```json
+{ "fromAccountId": "clx...", "toAccountId": "cly...", "amount": "1000", "pin": "1234" }
+```
+
+**Success response:**
+```json
+{
+  "success": true,
+  "data": {
+    "transactionId": "TXN_20260926_XY34ZQ",
+    "amount": "1000",
+    "fromAccountBalanceAfter": "19000",
+    "toAccountBalanceAfter": "6000"
+  }
+}
+```
+
+**Errors:** `VALIDATION_ERROR`, `SELF_TRANSFER_SAME_ACCOUNT`, `PIN_NOT_SET`, `INVALID_PIN`, `ACCOUNT_NOT_FOUND`, `INSUFFICIENT_BALANCE`, `IDEMPOTENCY_KEY_REUSED`, `DUPLICATE_TRANSACTION`, `UNAUTHORIZED`
+
+**Example (curl):**
+```bash
+curl -X POST http://localhost:4000/api/payments/self \
+  -H "Authorization: Bearer <accessToken>" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"fromAccountId":"clx...","toAccountId":"cly...","amount":"1000","pin":"1234"}'
+```
+
+---
+
+## Full error code reference (as of Phase 9)
 
 | Code | HTTP Status | Meaning |
 |---|---|---|
@@ -794,6 +839,7 @@ curl -X POST http://localhost:4000/api/payments/mobile \
 | `INVALID_IFSC` | 400 | IFSC failed format validation (surfaced as `VALIDATION_ERROR` with details) |
 | `CANNOT_REMOVE_PRIMARY_ACCOUNT` | 400 | Must set another account as primary before removing this one |
 | `CANNOT_PAY_SELF` | 400 | Tried to pay-by-mobile to your own registered number |
+| `SELF_TRANSFER_SAME_ACCOUNT` | 400 | `fromAccountId` and `toAccountId` were the same account |
 | `RECEIVER_ACCOUNT_NOT_FOUND` | 400 | Recipient exists but has no bank account to receive into |
 | `INSUFFICIENT_BALANCE` | 400 | Not enough balance for a debit (race-safe: checked and debited atomically) |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | Same `Idempotency-Key` sent with a different request body |

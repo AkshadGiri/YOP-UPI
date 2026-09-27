@@ -3,7 +3,7 @@ import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
 import { executeTransfer } from '../../services/transactionEngine';
 import { verifyPin } from '../auth/auth.service';
-import { getPrimaryAccountOrThrow } from '../accounts/account.service';
+import { getOwnedAccountOrThrow, getPrimaryAccountOrThrow } from '../accounts/account.service';
 
 export interface RecipientPreview {
   name: string;
@@ -85,5 +85,54 @@ export async function payByMobile(userId: string, input: PayByMobileInput): Prom
     amount: input.amount,
     recipient: { name: receiver.name, upiId: receiver.upiId },
     senderBalanceAfter: result.sourceBalanceAfter,
+  };
+}
+
+export interface SelfTransferInput {
+  fromAccountId: string;
+  toAccountId: string;
+  amount: string;
+  pin: string;
+}
+
+export interface SelfTransferResult {
+  transactionId: string;
+  amount: string;
+  fromAccountBalanceAfter: string;
+  toAccountBalanceAfter: string;
+}
+
+/**
+ * Transfers money between two of the caller's own bank accounts (Section 9
+ * of the spec / Section 10 of the original numbering). Both accounts are
+ * verified to belong to the caller — this is the ownership check the
+ * engine itself deliberately doesn't do (see transactionEngine.ts).
+ */
+export async function selfTransfer(userId: string, input: SelfTransferInput): Promise<SelfTransferResult> {
+  if (input.fromAccountId === input.toAccountId) {
+    throw new AppError('SELF_TRANSFER_SAME_ACCOUNT');
+  }
+
+  await verifyPin(userId, input.pin);
+
+  const fromAccount = await getOwnedAccountOrThrow(userId, input.fromAccountId);
+  const toAccount = await getOwnedAccountOrThrow(userId, input.toAccountId);
+
+  const result = await executeTransfer({
+    type: TransactionType.SELF_TRANSFER,
+    userId,
+    senderId: userId,
+    receiverId: userId,
+    amount: input.amount,
+    description: `Self transfer: ${fromAccount.bankName} → ${toAccount.bankName}`,
+    source: { type: 'BANK_ACCOUNT', id: fromAccount.id },
+    destination: { type: 'BANK_ACCOUNT', id: toAccount.id },
+  });
+
+  return {
+    transactionId: result.transactionId,
+    amount: input.amount,
+    fromAccountBalanceAfter: result.sourceBalanceAfter,
+    toAccountBalanceAfter: result.destinationBalanceAfter as string,
   };
 }

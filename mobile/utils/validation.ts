@@ -95,3 +95,15 @@ export type PayAmountForm = z.infer<typeof payAmountFormSchema>;
 
 export const payPinFormSchema = z.object({ pin: pinSchema });
 export type PayPinForm = z.infer<typeof payPinFormSchema>;
+
+export const selfTransferSelectSchema = z
+  .object({
+    fromAccountId: z.string().min(1, 'Select a source account'),
+    toAccountId: z.string().min(1, 'Select a destination account'),
+    amount: amountFieldSchema,
+  })
+  .refine((data) => data.fromAccountId !== data.toAccountId, {
+    message: 'Choose two different accounts',
+    path: ['toAccountId'],
+  });
+export type SelfTransferSelectForm = z.infer<typeof selfTransferSelectSchema>;

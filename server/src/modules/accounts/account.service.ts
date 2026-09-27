@@ -45,9 +45,11 @@ export async function listAccounts(userId: string): Promise<SafeBankAccount[]> {
  * Fetches one account, scoped to the owner. Returns ACCOUNT_NOT_FOUND (not
  * FORBIDDEN) if it exists but belongs to someone else — this deliberately
  * doesn't distinguish "doesn't exist" from "isn't yours" to an attacker
- * probing IDs.
+ * probing IDs. Exported (not just used internally) because the payments
+ * module needs this exact check for Self Transfer — both the "from" and
+ * "to" accounts must belong to the caller.
  */
-async function getOwnedAccountOrThrow(userId: string, accountId: string): Promise<BankAccount> {
+export async function getOwnedAccountOrThrow(userId: string, accountId: string): Promise<BankAccount> {
   const account = await prisma.bankAccount.findUnique({ where: { id: accountId } });
   if (!account || account.userId !== userId) {
     throw new AppError('ACCOUNT_NOT_FOUND');

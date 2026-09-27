@@ -9,17 +9,24 @@ import { formatDate } from '../../utils/date';
 /**
  * Generic payment receipt screen (Section 18 of the spec: "Payment
  * Successful" state). Reads its content from route params rather than
- * fetching anything itself, so any payment flow (mobile pay today; self
- * transfer, bank transfer, and QR payment in later phases) can navigate
- * here with the same four params and get the same receipt UI — one
- * implementation, not one per payment type.
+ * fetching anything itself, so any payment flow can navigate here and get
+ * the same receipt UI — one implementation, not one per payment type.
+ *
+ * Params are deliberately generic (`toLabel`/`toSubLabel`), not
+ * P2P-specific (`recipientName`/`recipientUpiId`): mobile pay passes the
+ * recipient's name and UPI ID, self transfer passes the destination
+ * account's bank name and masked number, and later bank transfer/QR
+ * payment will do the same with their own values — the screen doesn't
+ * need to know which.
  */
 export default function PaymentSuccessScreen() {
   const params = useLocalSearchParams<{
     transactionId: string;
     amount: string;
-    recipientName: string;
-    recipientUpiId: string;
+    toLabel: string;
+    toSubLabel: string;
+    toCaption?: string;
+    toSubCaption?: string;
   }>();
 
   return (
@@ -32,8 +39,8 @@ export default function PaymentSuccessScreen() {
         <Text style={styles.amount}>{formatINR(params.amount ?? '0')}</Text>
 
         <View style={styles.detailsCard}>
-          <DetailRow label="Paid to" value={params.recipientName ?? '—'} />
-          <DetailRow label="UPI ID" value={params.recipientUpiId ?? '—'} />
+          <DetailRow label={params.toCaption ?? 'Paid to'} value={params.toLabel ?? '—'} />
+          <DetailRow label={params.toSubCaption ?? 'UPI ID'} value={params.toSubLabel ?? '—'} />
           <DetailRow label="Transaction ID" value={params.transactionId ?? '—'} />
           <DetailRow label="Date" value={formatDate(new Date().toISOString())} />
         </View>

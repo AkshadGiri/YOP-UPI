@@ -60,6 +60,8 @@ export default function HomeScreen() {
         </Pressable>
 
         <PrimaryButton label="Send to mobile number" onPress={() => router.push('/send/mobile')} />
+        <View style={styles.buttonSpacer} />
+        <PrimaryButton label="Self Transfer" onPress={() => router.push('/send/self')} />
 
         <View style={styles.spacer} />
 
@@ -115,6 +117,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   spacer: { height: spacing.lg },
+  buttonSpacer: { height: spacing.sm },
   cardLabel: { ...typography.caption, color: colors.textSecondary },
   cardValue: { ...typography.body, color: colors.textPrimary, fontWeight: '600', marginTop: 2 },
   note: {

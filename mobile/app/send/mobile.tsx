@@ -90,8 +90,8 @@ export default function PayByMobileScreen() {
         params: {
           transactionId: result.transactionId,
           amount: result.amount,
-          recipientName: result.recipient.name,
-          recipientUpiId: result.recipient.upiId,
+          toLabel: result.recipient.name,
+          toSubLabel: result.recipient.upiId,
         },
       });
     } catch (err) {

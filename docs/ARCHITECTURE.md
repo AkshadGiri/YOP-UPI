@@ -131,14 +131,33 @@ The first payment type with a genuine third-party recipient. Flow:
    bank account as destination.
 
 **Design choice — settles via bank accounts, not the wallet:** every
-"UPI-style" payment type (mobile, and starting Phase 9/10 self-transfer
-and bank-transfer, plus Phase 12's QR) moves money between bank accounts,
-mirroring how real UPI settles payments through linked bank accounts. The
-app's **Wallet** is kept a deliberately separate, distinct concept — its
-own prepaid-style balance with its own add-money/withdraw (Phase 6/7) —
-rather than silently becoming "the" source of funds for P2P payments. This
-also matches the spec's Home screen (Section 7), which lists "Mobile" and
+"UPI-style" payment type (mobile, self-transfer, and starting Phase 10/12
+bank-transfer and QR) moves money between bank accounts, mirroring how
+real UPI settles payments through linked bank accounts. The app's
+**Wallet** is kept a deliberately separate, distinct concept — its own
+prepaid-style balance with its own add-money/withdraw (Phase 6/7) — rather
+than silently becoming "the" source of funds for P2P payments. This also
+matches the spec's Home screen (Section 7), which lists "Mobile" and
 "Wallet" as two separate quick actions, not one.
+
+### Self Transfer (Phase 9)
+
+`POST /api/payments/self` — moves money between two of the caller's own
+bank accounts. The simplest payment type in one sense (no recipient to
+resolve, both accounts are already known to belong to the caller) but it
+introduces a check none of the others need: **both** `fromAccountId` and
+`toAccountId` must be verified as the caller's own accounts (mobile
+payment only ever checks the sender's side; the receiver is a different
+person entirely). This reuses `accounts/account.service.ts`'s
+`getOwnedAccountOrThrow` — the exact same ownership check the accounts
+module itself uses — called twice, once per account.
+
+Same-account transfers (`fromAccountId === toAccountId`) are rejected with
+the dedicated `SELF_TRANSFER_SAME_ACCOUNT` code, checked in the service
+layer before the PIN is even verified — there's no legitimate reason to
+"transfer" money from an account to itself, so this is rejected as early
+as possible rather than proceeding through PIN verification for a request
+that can never succeed.
 
 ## QR flow
 
