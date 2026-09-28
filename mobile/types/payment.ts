@@ -17,3 +17,14 @@ export interface SelfTransferResult {
   fromAccountBalanceAfter: string;
   toAccountBalanceAfter: string;
 }
+
+export interface BankTransferResult {
+  transactionId: string;
+  amount: string;
+  senderBalanceAfter: string;
+  destination: {
+    accountHolderName: string;
+    maskedAccountNumber: string;
+    isRegisteredAccount: boolean;
+  };
+}

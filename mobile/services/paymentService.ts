@@ -1,6 +1,11 @@
 import { api } from './api';
 import { generateIdempotencyKey } from '../utils/idempotency';
-import type { PaymentResult, RecipientPreview, SelfTransferResult } from '../types/payment';
+import type {
+  BankTransferResult,
+  PaymentResult,
+  RecipientPreview,
+  SelfTransferResult,
+} from '../types/payment';
 
 interface SuccessEnvelope<T> {
   success: true;
@@ -39,6 +44,21 @@ export interface SelfTransferPayload {
 
 export async function selfTransfer(payload: SelfTransferPayload): Promise<SelfTransferResult> {
   const res = await api.post<SuccessEnvelope<SelfTransferResult>>('/payments/self', payload, {
+    headers: { 'Idempotency-Key': generateIdempotencyKey() },
+  });
+  return res.data.data;
+}
+
+export interface BankTransferPayload {
+  accountNumber: string;
+  ifsc: string;
+  accountHolderName: string;
+  amount: string;
+  pin: string;
+}
+
+export async function bankTransfer(payload: BankTransferPayload): Promise<BankTransferResult> {
+  const res = await api.post<SuccessEnvelope<BankTransferResult>>('/payments/bank', payload, {
     headers: { 'Idempotency-Key': generateIdempotencyKey() },
   });
   return res.data.data;

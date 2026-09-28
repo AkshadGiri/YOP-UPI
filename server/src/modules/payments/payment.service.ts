@@ -2,6 +2,7 @@ import { TransactionType } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { AppError } from '../../utils/AppError';
 import { executeTransfer } from '../../services/transactionEngine';
+import { maskAccountNumber } from '../../utils/upi';
 import { verifyPin } from '../auth/auth.service';
 import { getOwnedAccountOrThrow, getPrimaryAccountOrThrow } from '../accounts/account.service';
 
@@ -134,5 +135,98 @@ export async function selfTransfer(userId: string, input: SelfTransferInput): Pr
     amount: input.amount,
     fromAccountBalanceAfter: result.sourceBalanceAfter,
     toAccountBalanceAfter: result.destinationBalanceAfter as string,
+  };
+}
+
+export interface BankTransferInput {
+  accountNumber: string;
+  ifsc: string;
+  accountHolderName: string;
+  amount: string;
+  pin: string;
+}
+
+export interface BankTransferResult {
+  transactionId: string;
+  amount: string;
+  senderBalanceAfter: string;
+  destination: {
+    accountHolderName: string;
+    maskedAccountNumber: string;
+    /** Whether this landed in a real account on our platform or was a simulated external transfer. */
+    isRegisteredAccount: boolean;
+  };
+}
+
+/**
+ * Transfers money to an arbitrary account number + IFSC (Section 9 of the
+ * spec — "Bank Account Transfer"). Unlike pay-by-mobile, there's no
+ * "look up the recipient first" step: real bank transfers don't let you
+ * preview an arbitrary account before sending to it, so this goes straight
+ * from entering details to confirming and paying.
+ *
+ * The destination may or may not be a bank account that actually exists on
+ * this platform:
+ *   - If the account number + IFSC match a registered BankAccount, the
+ *     transfer credits it internally (exactly like mobile payment) and
+ *     `receiverId` is set to that account's owner.
+ *   - If not, this is an EXTERNAL_BANK_ACCOUNT transfer — the engine debits
+ *     the sender but has nothing internal to credit; the money
+ *     simulated-leaves the platform entirely. This is the honest
+ *     consequence of this being a demo app layered over our own ledger,
+ *     not a real bank rail (see README.md's "UPI-style" framing) — a real
+ *     integration (Phase 14) is exactly where an actual PSP call would
+ *     replace this no-op.
+ *
+ * `PAYMENT_MODE`/`DEMO_MODE` don't change this function's behavior yet —
+ * Phase 14 introduces the PaymentProvider abstraction that will let a
+ * live-mode external transfer actually call a real PSP instead of no-op'ing.
+ */
+export async function bankTransfer(userId: string, input: BankTransferInput): Promise<BankTransferResult> {
+  await verifyPin(userId, input.pin);
+
+  const senderAccount = await getPrimaryAccountOrThrow(userId, 'ACCOUNT_NOT_FOUND');
+
+  // Sending to one of your own accounts via raw account number/IFSC is
+  // what Self Transfer is for — redirect rather than silently allowing a
+  // second code path to do the same thing.
+  const ownAccountMatch = await prisma.bankAccount.findFirst({
+    where: { userId, accountNumber: input.accountNumber, ifsc: input.ifsc },
+  });
+  if (ownAccountMatch) {
+    throw new AppError('CANNOT_TRANSFER_TO_OWN_ACCOUNT');
+  }
+
+  const registeredDestination = await prisma.bankAccount.findFirst({
+    where: { accountNumber: input.accountNumber, ifsc: input.ifsc },
+  });
+
+  const result = await executeTransfer({
+    type: TransactionType.BANK_TRANSFER,
+    userId,
+    senderId: userId,
+    receiverId: registeredDestination?.userId ?? null,
+    amount: input.amount,
+    description: `Bank transfer to ${input.accountHolderName}`,
+    source: { type: 'BANK_ACCOUNT', id: senderAccount.id },
+    destination: registeredDestination
+      ? { type: 'BANK_ACCOUNT', id: registeredDestination.id }
+      : {
+          type: 'EXTERNAL_BANK_ACCOUNT',
+          accountNumber: input.accountNumber,
+          ifsc: input.ifsc,
+          accountHolder: input.accountHolderName,
+        },
+  });
+
+  return {
+    transactionId: result.transactionId,
+    amount: input.amount,
+    senderBalanceAfter: result.sourceBalanceAfter,
+    destination: {
+      accountHolderName: input.accountHolderName,
+      maskedAccountNumber: maskAccountNumber(input.accountNumber),
+      isRegisteredAccount: registeredDestination !== null,
+    },
   };
 }

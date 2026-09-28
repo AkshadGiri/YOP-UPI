@@ -159,6 +159,40 @@ layer before the PIN is even verified — there's no legitimate reason to
 as possible rather than proceeding through PIN verification for a request
 that can never succeed.
 
+### Bank Transfer (Phase 10)
+
+`POST /api/payments/bank` — pay an arbitrary account number + IFSC. This is
+the first payment type to exercise the engine's `EXTERNAL_BANK_ACCOUNT`
+participant type (defined in Phase 7, unused until now).
+
+There's deliberately **no "resolve recipient" step** here, unlike
+pay-by-mobile: real bank transfers don't let you preview an arbitrary
+account before sending, and building a lookup endpoint would both leak
+which account numbers exist on the platform and misrepresent how real bank
+rails behave. The flow goes straight from entering details to confirm to
+PIN.
+
+The destination resolves one of two ways, decided server-side:
+
+1. **Registered account** — if `accountNumber + ifsc` match a `BankAccount`
+   row anywhere on the platform, it's credited internally exactly like any
+   other transfer, and `receiverId` is set to that account's owner. Both
+   fields must match (not just the number) — an account number alone
+   isn't a globally unique identifier in real banking, so matching on it
+   alone would be ambiguous.
+2. **External account** — no match means the engine is called with an
+   `EXTERNAL_BANK_ACCOUNT` destination: the sender is debited, but there's
+   nothing internal to credit. The money simulated-leaves the platform.
+   This is the honest consequence of this project layering a demo ledger
+   over itself rather than a real bank network (see the root README's
+   "UPI-style" framing) — not a bug or a missing step. Phase 14's
+   `PaymentProvider` abstraction is exactly where this no-op becomes a
+   real PSP call in live mode.
+
+Sending to one of the caller's *own* accounts via this route is rejected
+with `CANNOT_TRANSFER_TO_OWN_ACCOUNT`, pointing users at Self Transfer
+instead of silently supporting two different ways to do the same thing.
+
 ## QR flow
 
 _Added in Phases 11–12._

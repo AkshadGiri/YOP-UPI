@@ -20,3 +20,9 @@ export async function selfTransferHandler(req: Request, res: Response): Promise<
   const result = await paymentService.selfTransfer(req.user.id, req.body);
   res.status(201).json({ success: true, data: result });
 }
+
+export async function bankTransferHandler(req: Request, res: Response): Promise<void> {
+  if (!req.user) throw new AppError('UNAUTHORIZED');
+  const result = await paymentService.bankTransfer(req.user.id, req.body);
+  res.status(201).json({ success: true, data: result });
+}

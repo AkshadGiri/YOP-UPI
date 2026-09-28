@@ -4,7 +4,12 @@ import { validate } from '../../middleware/validate';
 import { authenticate } from '../../middleware/auth';
 import { idempotencyGuard } from '../../services/idempotency';
 import * as controller from './payment.controller';
-import { payMobileSchema, resolveMobileQuerySchema, selfTransferSchema } from './payment.validation';
+import {
+  bankTransferSchema,
+  payMobileSchema,
+  resolveMobileQuerySchema,
+  selfTransferSchema,
+} from './payment.validation';
 
 const router = Router();
 
@@ -28,6 +33,13 @@ router.post(
   validate(selfTransferSchema),
   idempotencyGuard('POST /api/payments/self'),
   asyncHandler(controller.selfTransferHandler),
+);
+
+router.post(
+  '/bank',
+  validate(bankTransferSchema),
+  idempotencyGuard('POST /api/payments/bank'),
+  asyncHandler(controller.bankTransferHandler),
 );
 
 export default router;

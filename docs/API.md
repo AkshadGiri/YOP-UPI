@@ -686,7 +686,7 @@ curl -X POST http://localhost:4000/api/wallet/withdraw \
 
 ---
 
-## Payments (Phase 8, extended in Phase 9)
+## Payments (Phase 8, extended in Phase 9 and 10)
 
 The first payment type with a genuine recipient — a different registered
 user, found by mobile number. Settles via bank accounts (sender's primary
@@ -809,7 +809,75 @@ curl -X POST http://localhost:4000/api/payments/self \
 
 ---
 
-## Full error code reference (as of Phase 9)
+### POST /api/payments/bank
+
+Transfers to an arbitrary account number + IFSC (spec Section 9 — "Bank
+Account Transfer"). Unlike pay-by-mobile, there is no "look up the
+recipient first" endpoint — real bank transfers don't let you preview an
+arbitrary account before sending, so the client goes straight from
+entering details to confirming and paying.
+
+The destination may or may not be a bank account registered on this
+platform:
+- If the account number + IFSC match a registered `BankAccount`, the
+  transfer credits it internally and `isRegisteredAccount: true` is
+  returned.
+- If not, this is a simulated **external** transfer — the sender is
+  debited, but there's nothing internal to credit (`isRegisteredAccount:
+  false`). This is the honest consequence of this project layering a demo
+  ledger over itself rather than a real bank network — see the root
+  `README.md`'s "UPI-style" framing. A real PSP integration (Phase 14) is
+  exactly where this no-op would become an actual bank transfer call.
+
+Sending to one of your **own** accounts this way is rejected — use Self
+Transfer instead.
+
+**Auth required:** yes
+
+**Optional header:** `Idempotency-Key`
+
+**Request body:**
+```json
+{
+  "accountNumber": "30200087650099",
+  "ifsc": "SBIN0005678",
+  "accountHolderName": "Priya",
+  "amount": "300",
+  "pin": "1234"
+}
+```
+
+**Success response:**
+```json
+{
+  "success": true,
+  "data": {
+    "transactionId": "TXN_20260927_QW12ER",
+    "amount": "300",
+    "senderBalanceAfter": "19700",
+    "destination": {
+      "accountHolderName": "Priya",
+      "maskedAccountNumber": "XXXX XXXX 0099",
+      "isRegisteredAccount": true
+    }
+  }
+}
+```
+
+**Errors:** `VALIDATION_ERROR`, `PIN_NOT_SET`, `INVALID_PIN`, `ACCOUNT_NOT_FOUND` (you have no primary bank account), `CANNOT_TRANSFER_TO_OWN_ACCOUNT`, `INSUFFICIENT_BALANCE`, `IDEMPOTENCY_KEY_REUSED`, `DUPLICATE_TRANSACTION`, `UNAUTHORIZED`
+
+**Example (curl):**
+```bash
+curl -X POST http://localhost:4000/api/payments/bank \
+  -H "Authorization: Bearer <accessToken>" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"accountNumber":"30200087650099","ifsc":"SBIN0005678","accountHolderName":"Priya","amount":"300","pin":"1234"}'
+```
+
+---
+
+## Full error code reference (as of Phase 10)
 
 | Code | HTTP Status | Meaning |
 |---|---|---|
@@ -840,6 +908,7 @@ curl -X POST http://localhost:4000/api/payments/self \
 | `CANNOT_REMOVE_PRIMARY_ACCOUNT` | 400 | Must set another account as primary before removing this one |
 | `CANNOT_PAY_SELF` | 400 | Tried to pay-by-mobile to your own registered number |
 | `SELF_TRANSFER_SAME_ACCOUNT` | 400 | `fromAccountId` and `toAccountId` were the same account |
+| `CANNOT_TRANSFER_TO_OWN_ACCOUNT` | 400 | Bank transfer destination matched one of your own accounts — use Self Transfer |
 | `RECEIVER_ACCOUNT_NOT_FOUND` | 400 | Recipient exists but has no bank account to receive into |
 | `INSUFFICIENT_BALANCE` | 400 | Not enough balance for a debit (race-safe: checked and debited atomically) |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | Same `Idempotency-Key` sent with a different request body |
