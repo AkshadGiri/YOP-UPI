@@ -877,7 +877,82 @@ curl -X POST http://localhost:4000/api/payments/bank \
 
 ---
 
-## Full error code reference (as of Phase 10)
+## QR (Phase 11)
+
+### POST /api/qr/generate
+
+Generates the caller's own payment QR (spec Section 11). The UPI ID and
+name always come from the authenticated user's record — there is no way to
+request a QR that pays someone else. Scanning and paying a QR is Phase 12.
+
+Two kinds of QR, depending on whether `amount` is sent:
+
+| | Static (no `amount`) | Dynamic (`amount` sent) |
+|---|---|---|
+| URI | `upi://pay?pa=rahul@demo&pn=Rahul&cu=INR` | `upi://pay?pa=rahul@demo&pn=Rahul&am=500&cu=INR&exp=1790590500&sig=284c…` |
+| Expires | never | 15 minutes (`exp`, unix seconds) |
+| Signed | no | yes (`sig`, HMAC-SHA256, 128 bits) |
+| Payer can change amount | yes (Phase 12) | no — amount is locked |
+
+The static form is exactly the format in the project spec and is what any
+external QR generator would produce, so hand-made QRs keep working. Only
+the dynamic form is signed: that's the case where the receiver fixes the
+amount, so it must be tamper-evident (editing `am`, `pa`, or `exp`
+invalidates `sig`) and time-limited. The signature covers
+`upiId | amount | currency | exp`; the display name (`pn`) is deliberately
+not signed because the payer's screen shows the name from the server, never
+the one printed in the QR. Currency is always `INR` (`cu=INR`).
+
+**Auth required:** yes
+
+**Request body** (all fields optional):
+```json
+{ "amount": "500" }
+```
+`amount` is a decimal string, same rules as every other amount (up to 2
+decimal places, > 0, ≤ ₹1,00,000).
+
+**Success response:**
+```json
+{
+  "success": true,
+  "data": {
+    "qr": {
+      "uri": "upi://pay?pa=rahul@demo&pn=Rahul&am=500&cu=INR&exp=1790590500&sig=284c3a8f076fb8b756e1ab97e6d10563",
+      "qrDataUrl": "data:image/png;base64,iVBORw0KGgo...",
+      "upiId": "rahul@demo",
+      "name": "Rahul",
+      "amount": "500",
+      "currency": "INR",
+      "expiresAt": "2026-09-28T10:15:00.000Z"
+    }
+  }
+}
+```
+For a static QR, `amount` and `expiresAt` are `null`. `qrDataUrl` is a PNG
+that can be dropped straight into an `<Image>` / `<img>`.
+
+**Errors:** `VALIDATION_ERROR`, `UNAUTHORIZED`
+
+**Example (curl):**
+```bash
+# static
+curl -X POST http://localhost:4000/api/qr/generate \
+  -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" -d '{}'
+
+# dynamic, ₹500
+curl -X POST http://localhost:4000/api/qr/generate \
+  -H "Authorization: Bearer <accessToken>" -H "Content-Type: application/json" \
+  -d '{"amount":"500"}'
+```
+
+Generating a QR does not check that you have a bank account to receive
+into; a payer will get `RECEIVER_ACCOUNT_NOT_FOUND` at payment time
+(Phase 12), same as pay-by-mobile.
+
+---
+
+## Full error code reference (as of Phase 11)
 
 | Code | HTTP Status | Meaning |
 |---|---|---|
@@ -913,5 +988,5 @@ curl -X POST http://localhost:4000/api/payments/bank \
 | `INSUFFICIENT_BALANCE` | 400 | Not enough balance for a debit (race-safe: checked and debited atomically) |
 | `IDEMPOTENCY_KEY_REUSED` | 409 | Same `Idempotency-Key` sent with a different request body |
 | `DUPLICATE_TRANSACTION` | 409 | Same `Idempotency-Key` request is still being processed |
-| `INVALID_QR` / `QR_EXPIRED` | 400 | Reserved for Phase 11–12 |
+| `INVALID_QR` / `QR_EXPIRED` | 400 | Reserved for Phase 12 (scanning) — tampered/unsupported QR and expired dynamic QR. Generation (Phase 11) never produces them. |
 | `TRANSACTION_FAILED` / `TRANSACTION_NOT_FOUND` | varies | Reserved for Phase 13 (transaction history detail lookup) and Phase 14+ (async provider failures) |

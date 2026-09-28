@@ -11,6 +11,7 @@ import userRouter from './modules/users/user.routes';
 import accountRouter from './modules/accounts/account.routes';
 import walletRouter from './modules/wallet/wallet.routes';
 import paymentRouter from './modules/payments/payment.routes';
+import qrRouter from './modules/qr/qr.routes';
 
 /**
  * Express application assembly.
@@ -54,10 +55,10 @@ export function createApp(): Application {
   app.use('/api/accounts', accountRouter);
   app.use('/api/wallet', walletRouter);
   app.use('/api/payments', paymentRouter);
+  app.use('/api/qr', qrRouter);
 
   // Module routers mounted here as later phases add them, e.g.:
   // app.use('/api/transactions', transactionRouter);
-  // app.use('/api/qr', qrRouter);
   // app.use('/api/webhooks', webhookRouter);
 
   app.use((_req: Request, res: Response, _next: NextFunction) => {

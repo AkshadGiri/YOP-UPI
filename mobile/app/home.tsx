@@ -64,6 +64,8 @@ export default function HomeScreen() {
         <PrimaryButton label="Self Transfer" onPress={() => router.push('/send/self')} />
         <View style={styles.buttonSpacer} />
         <PrimaryButton label="Bank Transfer" onPress={() => router.push('/send/bank')} />
+        <View style={styles.buttonSpacer} />
+        <PrimaryButton label="My QR code" onPress={() => router.push('/qr/my-code')} />
 
         <View style={styles.spacer} />
 

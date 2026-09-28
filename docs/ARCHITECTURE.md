@@ -195,7 +195,48 @@ instead of silently supporting two different ways to do the same thing.
 
 ## QR flow
 
-_Added in Phases 11–12._
+### Generation (Phase 11)
+
+`POST /api/qr/generate` builds a `upi://pay?...` URI from the caller's own
+UPI ID and name (`utils/qrPayload.ts`) and renders it to a PNG data URL
+with the `qrcode` package. The server renders the image so the mobile app
+needs no QR library — it just shows an `<Image>`.
+
+There are two kinds of QR, and the difference is deliberate:
+
+- **Static** (no amount): `upi://pay?pa=<upiId>&pn=<name>&cu=INR`. This is
+  exactly the format in the project spec. It carries no signature and
+  never expires — it's just an identity, like a printed shop QR. Keeping
+  it plain means QRs made by any external generator work too, and the QR
+  never breaks if server secrets rotate.
+- **Dynamic** (amount fixed by the receiver): adds `am`, `exp` (unix
+  seconds, 15 minutes out) and `sig`. `sig` is a truncated HMAC-SHA256
+  over `upiId | amount | currency | exp`. This is the case where
+  integrity matters: without a signature, a payer could edit `am=500`
+  down to `am=1` in the QR text and the receiver's request would no
+  longer bind. The name (`pn`) is left out of the signature on purpose —
+  the payer's screen shows the name from our database, never the one
+  printed in the QR, so tampering with it gains nothing.
+
+The signing key is derived from `JWT_ACCESS_SECRET` with a fixed
+domain-separation label (`upi-demo-qr-signing-v1`), so a QR signature can
+never be mistaken for an access token, and no extra environment variable
+is needed. Rotating that secret invalidates outstanding dynamic QRs, which
+is harmless given their 15-minute life.
+
+What a signature does *not* protect against: an attacker sticking their
+own valid QR over yours (they can sign their own). That's the classic QR
+fraud, and no format can fix it — it's why the payer's confirm screen
+shows the recipient's name and UPI ID from the server before the PIN.
+
+### Scanning and paying (Phase 12)
+
+_Not built yet._ Phase 12 adds `POST /api/qr/resolve` and
+`POST /api/payments/qr`: parse the URI, reject anything that isn't
+`upi://pay` (`INVALID_QR`), verify `sig` and enforce `exp` on dynamic QRs
+(`INVALID_QR` / `QR_EXPIRED`), resolve the recipient from `pa`, lock the
+amount for signed QRs but let the payer enter/change it for static ones,
+then PIN and pay through the same transaction engine.
 
 ## Wallet flow
 

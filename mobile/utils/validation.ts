@@ -111,6 +111,12 @@ export type PayAmountForm = z.infer<typeof payAmountFormSchema>;
 export const payPinFormSchema = z.object({ pin: pinSchema });
 export type PayPinForm = z.infer<typeof payPinFormSchema>;
 
+/** Amount for a dynamic QR. Blank is valid and means "no amount" (a static QR). */
+export const qrAmountFormSchema = z.object({
+  amount: z.union([z.literal(''), amountFieldSchema]),
+});
+export type QrAmountForm = z.infer<typeof qrAmountFormSchema>;
+
 export const selfTransferSelectSchema = z
   .object({
     fromAccountId: z.string().min(1, 'Select a source account'),

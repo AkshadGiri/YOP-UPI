@@ -47,7 +47,7 @@ This repository is being built in phases (see project plan). Current phase:
 - [x] Phase 8 — Mobile payment
 - [x] Phase 9 — Self transfer
 - [x] Phase 10 — Bank transfer
-- [ ] Phase 11 — QR generation
+- [x] Phase 11 — QR generation
 - [ ] Phase 12 — QR scanning
 - [ ] Phase 13 — Transaction history
 - [ ] Phase 14 — Payment provider adapter
