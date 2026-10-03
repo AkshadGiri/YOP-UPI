@@ -1,12 +1,17 @@
 import { z } from 'zod';
-import { amountSchema } from '../../utils/validators';
+import { amountSchema, pinSchema } from '../../utils/validators';
 
-/**
- * `amount` is optional: omitted means a static QR (identity only), present
- * means a dynamic QR with that amount locked in. Currency isn't accepted
- * as input — INR is the only supported currency and is always emitted as
- * `cu=INR` in the URI.
- */
 export const generateQrSchema = z.object({
   amount: amountSchema().optional(),
+});
+
+export const resolveQrSchema = z.object({
+  uri: z.string().min(1, 'QR URI is required'),
+});
+
+export const payByQrSchema = z.object({
+  uri: z.string().min(1, 'QR URI is required'),
+  // Required only for static QRs — dynamic QRs have amount baked in
+  amount: amountSchema().optional(),
+  pin: pinSchema,
 });

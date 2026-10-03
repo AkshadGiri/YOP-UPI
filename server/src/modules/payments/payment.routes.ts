@@ -6,6 +6,7 @@ import { idempotencyGuard } from '../../services/idempotency';
 import * as controller from './payment.controller';
 import {
   bankTransferSchema,
+  payByQrSchema,
   payMobileSchema,
   resolveMobileQuerySchema,
   selfTransferSchema,
@@ -40,6 +41,14 @@ router.post(
   validate(bankTransferSchema),
   idempotencyGuard('POST /api/payments/bank'),
   asyncHandler(controller.bankTransferHandler),
+);
+
+// Phase 12 — QR payment
+router.post(
+  '/qr',
+  validate(payByQrSchema),
+  idempotencyGuard('POST /api/payments/qr'),
+  asyncHandler(controller.payByQrHandler),
 );
 
 export default router;
