@@ -13,6 +13,7 @@ import walletRouter from './modules/wallet/wallet.routes';
 import paymentRouter from './modules/payments/payment.routes';
 import qrRouter from './modules/qr/qr.routes';
 import transactionRouter from './modules/transactions/transaction.routes';
+import webhookRouter from './modules/webhooks/webhook.routes';
 
 export function createApp(): Application {
   const app = express();
@@ -52,6 +53,7 @@ export function createApp(): Application {
   app.use('/api/payments', paymentRouter);
   app.use('/api/qr', qrRouter);
   app.use('/api/transactions', transactionRouter);
+  app.use('/api/webhooks', webhookRouter);
 
   app.use((_req: Request, res: Response, _next: NextFunction) => {
     res.status(404).json({
