@@ -1,4 +1,4 @@
-import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, radius, spacing, typography } from '../utils/theme';
 
 interface PrimaryButtonProps {
@@ -6,9 +6,16 @@ interface PrimaryButtonProps {
   onPress: () => void;
   loading?: boolean;
   disabled?: boolean;
+  variant?: 'primary' | 'secondary' | 'danger';
 }
 
-export function PrimaryButton({ label, onPress, loading, disabled }: PrimaryButtonProps) {
+export function PrimaryButton({
+  label,
+  onPress,
+  loading,
+  disabled,
+  variant = 'primary',
+}: PrimaryButtonProps) {
   const isDisabled = disabled || loading;
   return (
     <Pressable
@@ -16,14 +23,18 @@ export function PrimaryButton({ label, onPress, loading, disabled }: PrimaryButt
       disabled={isDisabled}
       style={({ pressed }) => [
         styles.button,
+        variant === 'secondary' && styles.buttonSecondary,
+        variant === 'danger' && styles.buttonDanger,
         isDisabled && styles.buttonDisabled,
         pressed && !isDisabled && styles.buttonPressed,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={colors.white} />
+        <ActivityIndicator color={variant === 'secondary' ? colors.primary : colors.white} />
       ) : (
-        <Text style={styles.label}>{label}</Text>
+        <Text style={[styles.label, variant === 'secondary' && styles.labelSecondary]}>
+          {label}
+        </Text>
       )}
     </Pressable>
   );
@@ -32,21 +43,28 @@ export function PrimaryButton({ label, onPress, loading, disabled }: PrimaryButt
 const styles = StyleSheet.create({
   button: {
     backgroundColor: colors.primary,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     paddingVertical: spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 52,
   },
-  buttonPressed: {
-    backgroundColor: colors.primaryDark,
+  buttonSecondary: {
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primary + '40',
   },
-  buttonDisabled: {
-    opacity: 0.5,
+  buttonDanger: {
+    backgroundColor: colors.dangerLight,
+    borderWidth: 1,
+    borderColor: colors.danger + '40',
   },
+  buttonPressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
+  buttonDisabled: { opacity: 0.4 },
   label: {
-    color: colors.white,
-    fontSize: typography.body.fontSize,
-    fontWeight: '600',
+    color: colors.background,
+    fontSize: typography.bodyMedium.fontSize,
+    fontWeight: '700',
   },
+  labelSecondary: { color: colors.primary },
 });

@@ -12,7 +12,7 @@ export function TextField({ label, error, style, ...inputProps }: TextFieldProps
       <Text style={styles.label}>{label}</Text>
       <TextInput
         style={[styles.input, error ? styles.inputError : null, style]}
-        placeholderTextColor={colors.textSecondary}
+        placeholderTextColor={colors.textTertiary}
         {...inputProps}
       />
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -21,17 +21,15 @@ export function TextField({ label, error, style, ...inputProps }: TextFieldProps
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: spacing.md,
-  },
+  container: { marginBottom: spacing.md },
   label: {
-    fontSize: typography.caption.fontSize,
+    fontSize: typography.captionMedium.fontSize,
     fontWeight: '600',
     color: colors.textSecondary,
     marginBottom: spacing.xs,
   },
   input: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
@@ -40,9 +38,7 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     backgroundColor: colors.surface,
   },
-  inputError: {
-    borderColor: colors.danger,
-  },
+  inputError: { borderColor: colors.danger },
   errorText: {
     color: colors.danger,
     fontSize: typography.caption.fontSize,
