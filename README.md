@@ -33,28 +33,7 @@ See `/docs/ARCHITECTURE.md` for the full explanation once Phase 14 lands.
   /docs       API.md and ARCHITECTURE.md
 ```
 
-## Status
 
-This repository is being built in phases (see project plan). Current phase:
-
-- [x] Phase 1 — Project setup
-- [x] Phase 2 — Database + Prisma
-- [ ] Phase 3 — Authentication
-- [ ] Phase 4 — User profile
-- [ ] Phase 5 — Bank accounts
-- [ ] Phase 6 — Wallet + ledger
-- [ ] Phase 7 — Central transaction engine
-- [ ] Phase 8 — Mobile payment
-- [ ] Phase 9 — Self transfer
-- [ ] Phase 10 — Bank transfer
-- [ ] Phase 11 — QR generation
-- [ ] Phase 12 — QR scanning
-- [ ] Phase 13 — Transaction history
-- [ ] Phase 14 — Payment provider adapter
-- [ ] Phase 15 — Webhooks
-- [ ] Phase 16 — UI polish
-- [ ] Phase 17 — Testing
-- [ ] Phase 18 — Deployment
 
 ## Quick start
 
